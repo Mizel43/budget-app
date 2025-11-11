@@ -260,7 +260,7 @@ tfoot td {
     padding: 8px 10px;
     border: 1px solid rgba(0, 0, 0, 0.1);
     border-radius: var(--radius);
-    background: var(--color-surface);
+    background: var(--color-gray-400);
     color: var(--color-text);" readonly />
         </div>
         <div>
@@ -269,7 +269,7 @@ tfoot td {
     padding: 8px 10px;
     border: 1px solid rgba(0, 0, 0, 0.1);
     border-radius: var(--radius);
-    background: var(--color-surface);
+    background: var(--color-gray-400);
     color: var(--color-text);" readonly />
         </div>
         <div>
@@ -278,7 +278,7 @@ tfoot td {
     padding: 8px 10px;
     border: 1px solid rgba(0, 0, 0, 0.1);
     border-radius: var(--radius);
-    background: var(--color-surface);
+    background: var(--color-gray-400);
     color: var(--color-text);" readonly />
         </div>
         <div>
@@ -287,7 +287,7 @@ tfoot td {
     padding: 8px 10px;
     border: 1px solid rgba(0, 0, 0, 0.1);
     border-radius: var(--radius);
-    background: var(--color-surface);
+    background: var(--color-gray-400);
     color: var(--color-text);" readonly />
         </div>
       </div>
@@ -549,8 +549,20 @@ function buildDaysTable(count=30){
       <td><div id="balance-${i}" class="day-balance pos">0.00</div></td>
     `;
     daysTbody.appendChild(tr);
+
     const m = tr.querySelector(`#masha-${i}`);
     const p = tr.querySelector(`#ilya-${i}`);
+
+    // --- новый функционал ---
+    [m, p].forEach(input => {
+      input.addEventListener('focus', ()=>{
+        if(input.value === "0") input.value = "";
+      });
+      input.addEventListener('blur', ()=>{
+        if(input.value.trim() === "") input.value = "0";
+      });
+    });
+
     m.addEventListener('input', ()=>{ updateDailyBalances(); scheduleSave(); });
     p.addEventListener('input', ()=>{ updateDailyBalances(); scheduleSave(); });
   }
