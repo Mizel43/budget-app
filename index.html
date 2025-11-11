@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Управление месячным бюджетом — синхронно</title>
+<style>
+  :root{--bg:#f7f7f7;--surface:#fff;--accent:#1f9;--muted:#6b7280;--danger:#db2777;--radius:12px;--pad:16px}
+  *{box-sizing:border-box;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial}
+  body{margin:0;padding:20px;background:var(--bg);color:#0f172a}
+  .wrap{max-width:1100px;margin:0 auto}
+  header{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
+  h1{font-size:20px;margin:0}
+  .controls{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .btn{background:#0ea5a3;color:#fff;border:0;padding:8px 12px;border-radius:10px;cursor:pointer}
+  .btn.ghost{background:transparent;color:inherit;border:1px solid rgba(15,23,42,.08)}
+  .btn.danger{background:var(--danger)}
+  .card{background:var(--surface);padding:var(--pad);border-radius:var(--radius);box-shadow:0 6px 18px rgba(2,6,23,.06);margin-bottom:16px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+  label{font-size:12px;color:var(--muted);display:block;margin-bottom:6px}
+  input[type="text"],input[type="number"],select{width:100%;padding:8px;border-radius:10px;border:1px solid #e6e6e6}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:8px;text-align:left;border-bottom:1px solid #f0f0f0}
+  .days{overflow:auto}
+  .day-balance{display:inline-block;padding:6px 10px;border-radius:8px}
+  .pos{background:#ecfeff;color:#064e3b;border:1px solid rgba(6,78,59,.08)}
+  .neg{background:#fff1f2;color:#7f1d1d;border:1px solid rgba(127,29,29,.06)}
+  .small{font-size:13px;padding:6px 8px}
+  .row-actions{display:flex;gap:8px;flex-wrap:wrap}
+  .muted{color:var(--muted);font-size:13px}
+  @media (max-width:600px){body{padding:12px} header{gap:8px} h1{font-size:16px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Управление месячным бюджетом</h1>
+    <div class="controls">
+      <input id="roomInput" placeholder="ID комнаты (оставь пустым — создастся)" style="padding:8px;border-radius:10px;border:1px solid #e6e6e6" />
+      <button class="btn" id="joinBtn">Создать/Подключиться</button>
+      <button class="btn ghost" id="copyLinkBtn">Копировать ссылку</button>
+      <button class="btn ghost" id="shareBtn">Share (Web Share)</button>
+    </div>
+  </header>
+
+  <div id="mainArea" style="display:none">
+    <div class="card">
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <div class="muted">Комната:</div>
+        <div id="roomId" style="font-weight:600"></div>
+        <div style="margin-left:auto" class="muted">Статус: <span id="status">offline</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Обязательные траты</h3>
+      <table id="expensesTable">
+        <thead><tr><th>Категория</th><th>Сумма (₽)</th><th></th></tr></thead>
+        <tbody id="expensesBody"></tbody>
+        <tfoot><tr><td>Итого</td><td id="totalExpenses">0</td><td></td></tr></tfoot>
+      </table>
+      <div style="margin-top:10px" class="row-actions">
+        <button class="btn small" id="addExpense">Добавить категорию</button>
+        <button class="btn ghost small" id="resetExpenses">Сбросить траты</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Месячные параметры</h3>
+      <div class="grid">
+        <div>
+          <label>Месячный доход (₽)</label>
+          <input id="monthlyIncome" type="number" value="0" />
+        </div>
+        <div>
+          <label>Дней в месяце</label>
+          <select id="daysCount"><option>28</option><option>29</option><option selected>30</option><option>31</option></select>
+        </div>
+        <div>
+          <label>Свободные средства</label>
+          <input id="freeMoney" readonly />
+        </div>
+        <div>
+          <label>Можно тратить в день</label>
+          <input id="dailyBudget" readonly />
+        </div>
+        <div>
+          <label>Маша (в день)</label>
+          <input id="mashaBudget" readonly />
+        </div>
+        <div>
+          <label>Илья (в день)</label>
+          <input id="ilyaBudget" readonly />
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Расходы по дням</h3>
+      <div class="days">
+        <table id="daysTable">
+          <thead><tr><th>День</th><th>Маша</th><th>Илья</th><th>Остаток</th></tr></thead>
+          <tbody id="daysTbody"></tbody>
+          <tfoot><tr><td>Итого</td><td id="totalMasha">0</td><td id="totalIlya">0</td><td id="totalBalance">0</td></tr></tfoot>
+        </table>
+      </div>
+      <div style="margin-top:10px" class="row-actions">
+        <button class="btn small" id="clearDaily">Очистить дневные</button>
+        <button class="btn danger small" id="fullReset">Полный сброс</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="startNote" class="muted">Подключитесь к комнате, чтобы включить синхронизацию.</div>
+</div>
+
+<!-- Firebase (modular v9) CDN -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, onSnapshot, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+
+// ---- REPLACE_WITH_YOUR_FIREBASE_CONFIG ----
+const firebaseConfig = {
+  apiKey: "AIzaSyClASfNWa6TVGtA1naCW5-AwPo6FdqS2OE",
+  authDomain: "budget-app-6b928.firebaseapp.com",
+  projectId: "budget-app-6b928",
+  storageBucket: "budget-app-6b928.firebasestorage.app",
+  messagingSenderId: "185609122187",
+  appId: "1:185609122187:web:3bcbb6d5877f857b22ff8e"
+};
+// ------------------------------------------
+
+if (!firebaseConfig || !firebaseConfig.apiKey) {
+  alert('Вставьте firebaseConfig в код (см. комментарий вверху).');
+}
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+try { enableIndexedDbPersistence(db); } catch(e){ console.warn('persistence not enabled', e); }
+
+let room = null;
+let localChange = false;
+
+// --- элементы ---
+const mainArea = document.getElementById('mainArea');
+const joinBtn = document.getElementById('joinBtn');
+const roomInput = document.getElementById('roomInput');
+const roomIdEl = document.getElementById('roomId');
+const statusEl = document.getElementById('status');
+const copyLinkBtn = document.getElementById('copyLinkBtn');
+const shareBtn = document.getElementById('shareBtn');
+
+const expensesBody = document.getElementById('expensesBody');
+const totalExpensesEl = document.getElementById('totalExpenses');
+const addExpenseBtn = document.getElementById('addExpense');
+const resetExpensesBtn = document.getElementById('resetExpenses');
+
+const monthlyIncomeEl = document.getElementById('monthlyIncome');
+const daysCountEl = document.getElementById('daysCount');
+const freeMoneyEl = document.getElementById('freeMoney');
+const dailyBudgetEl = document.getElementById('dailyBudget');
+const mashaBudgetEl = document.getElementById('mashaBudget');
+const ilyaBudgetEl = document.getElementById('ilyaBudget');
+
+const daysTbody = document.getElementById('daysTbody');
+const totalMashaEl = document.getElementById('totalMasha');
+const totalIlyaEl = document.getElementById('totalIlya');
+const totalBalanceEl = document.getElementById('totalBalance');
+
+const clearDailyBtn = document.getElementById('clearDaily');
+const fullResetBtn = document.getElementById('fullReset');
+
+// ---------- МОДАЛЬНОЕ ОКНО ----------
+const modal = document.createElement('div');
+modal.innerHTML = `
+  <div id="confirmModal" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(15,23,42,.45);z-index:1000;">
+    <div style="background:#fff;border-radius:12px;max-width:320px;padding:20px;box-shadow:0 10px 40px rgba(2,6,23,.2);text-align:center;">
+      <div id="confirmText" style="margin-bottom:16px;font-size:15px;"></div>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        <button id="confirmYes" class="btn danger small">Удалить</button>
+        <button id="confirmNo" class="btn ghost small">Отмена</button>
+      </div>
+    </div>
+  </div>
+`;
+document.body.appendChild(modal);
+const confirmModal = document.getElementById('confirmModal');
+const confirmText = document.getElementById('confirmText');
+const confirmYes = document.getElementById('confirmYes');
+const confirmNo = document.getElementById('confirmNo');
+
+function showConfirm(text){
+  return new Promise((resolve)=>{
+    confirmText.textContent = text;
+    confirmModal.style.display = 'flex';
+    const close = (result)=>{
+      confirmModal.style.display = 'none';
+      confirmYes.onclick = confirmNo.onclick = null;
+      resolve(result);
+    };
+    confirmYes.onclick = ()=>close(true);
+    confirmNo.onclick = ()=>close(false);
+  });
+}
+
+// ---------- ВСПОМОГАТЕЛЬНЫЕ ----------
+function uid(len=8){return Math.random().toString(36).slice(2,2+len);}
+function escapeHtml(s){return String(s).replaceAll('"','&quot;').replaceAll('<','&lt;').replaceAll('>','&gt;');}
+
+// ---------- STATE ----------
+function getStateFromUI(){
+  const expenses = [];
+  expensesBody.querySelectorAll('tr').forEach(tr=>{
+    const cat = tr.querySelector('input[data-cat]').value.trim();
+    const amount = parseFloat(tr.querySelector('input[data-amt]').value) || 0;
+    if(cat) expenses.push({category:cat,amount});
+  });
+  const days = [];
+  const daysCount = parseInt(daysCountEl.value,10);
+  for(let i=1;i<=daysCount;i++){
+    const m = parseFloat(document.getElementById(`masha-${i}`)?.value) || 0;
+    const p = parseFloat(document.getElementById(`ilya-${i}`)?.value) || 0;
+    days.push({masha:m,ilya:p});
+  }
+  return {
+    monthlyIncome: parseFloat(monthlyIncomeEl.value)||0,
+    daysCount: parseInt(daysCountEl.value,10),
+    expenses,
+    days
+  };
+}
+
+function applyStateToUI(state){
+  if(!state) return;
+  localChange = true;
+  expensesBody.innerHTML = '';
+  (state.expenses || []).forEach(e => addExpenseRow(e.category, e.amount));
+  updateExpensesTotals();
+
+  monthlyIncomeEl.value = state.monthlyIncome || 0;
+  daysCountEl.value = state.daysCount || 30;
+  buildDaysTable(state.daysCount || 30);
+  const daysArr = state.days || [];
+  for(let i=1;i<= (state.daysCount||30); i++){
+    const mEl = document.getElementById(`masha-${i}`);
+    const pEl = document.getElementById(`ilya-${i}`);
+    const d = daysArr[i-1] || {masha:0,ilya:0};
+    if(mEl) mEl.value = d.masha ?? 0;
+    if(pEl) pEl.value = d.ilya ?? 0;
+  }
+  calculate();
+  setTimeout(()=>localChange=false,250);
+}
+
+// ---------- FIREBASE ----------
+let unsub = null;
+async function joinRoom(id){
+  if(unsub) unsub();
+  if(!id) id = uid(10);
+  room = id;
+  roomIdEl.textContent = room;
+  mainArea.style.display = 'block';
+  document.getElementById('startNote').style.display = 'none';
+  localStorage.setItem('budget_room', room);
+  const docRef = doc(db, 'budgets', room);
+  statusEl.textContent = 'connecting...';
+  const snap = await getDoc(docRef);
+  if(!snap.exists()){
+    const initState = {
+      monthlyIncome: 0,
+      daysCount: 30,
+      expenses: [
+        {category:'Квартира',amount:2700},
+        {category:'ЖКХ',amount:600},
+        {category:'Тел. связь',amount:260},
+        {category:'Свадьба',amount:1000}
+      ],
+      days: Array(30).fill({masha:0,ilya:0}),
+      updatedAt: Date.now()
+    };
+    await setDoc(docRef, initState);
+  }
+  unsub = onSnapshot(docRef, (snap)=>{
+    if(!snap.exists()) return;
+    statusEl.textContent = 'online';
+    const data = snap.data();
+    if(!localChange) applyStateToUI(data);
+  }, err=>{
+    console.error('snapshot error',err);
+    statusEl.textContent = 'error';
+  });
+  startAutoSave();
+}
+
+let saveTimer = null;
+function startAutoSave(){attachUIHandlers();}
+function scheduleSave(){
+  if(localChange) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async ()=>{
+    try{
+      const data = getStateFromUI();
+      data.updatedAt = Date.now();
+      localChange = true;
+      await setDoc(doc(db, 'budgets', room), data, {merge:true});
+      setTimeout(()=>localChange=false,200);
+    }catch(e){ console.error(e) }
+  }, 300);
+}
+
+// ---------- UI ----------
+function addExpenseRow(cat='', amt=0){
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input data-cat type="text" value="${escapeHtml(cat)}" placeholder="Категория" class="small"></td>
+    <td><input data-amt type="number" min="0" value="${amt}" class="small"></td>
+    <td><button class="btn ghost small remove">Удалить</button></td>
+  `;
+  expensesBody.appendChild(tr);
+  const catInput = tr.querySelector('[data-cat]');
+  const amtInput = tr.querySelector('[data-amt]');
+  catInput.addEventListener('input', ()=>{ updateExpensesTotals(); scheduleSave(); });
+  amtInput.addEventListener('input', ()=>{ updateExpensesTotals(); scheduleSave(); });
+  tr.querySelector('.remove').addEventListener('click', async ()=>{
+    const ok = await showConfirm('Удалить эту категорию?');
+    if(ok){ tr.remove(); updateExpensesTotals(); scheduleSave(); }
+  });
+  updateExpensesTotals();
+  return tr;
+}
+
+function updateExpensesTotals(){
+  let total = 0;
+  expensesBody.querySelectorAll('input[data-amt]').forEach(i=>{
+    total += parseFloat(i.value) || 0;
+  });
+  totalExpensesEl.textContent = total.toFixed(0);
+  calculate();
+}
+
+function buildDaysTable(count=30){
+  daysTbody.innerHTML = '';
+  for(let i=1;i<=count;i++){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-weight:600">${i}</td>
+      <td><input id="masha-${i}" type="number" min="0" step="0.01" class="small" value="0"></td>
+      <td><input id="ilya-${i}" type="number" min="0" step="0.01" class="small" value="0"></td>
+      <td><div id="balance-${i}" class="day-balance pos">0.00</div></td>
+    `;
+    daysTbody.appendChild(tr);
+    const m = tr.querySelector(`#masha-${i}`);
+    const p = tr.querySelector(`#ilya-${i}`);
+    m.addEventListener('input', ()=>{ updateDailyBalances(); scheduleSave(); });
+    p.addEventListener('input', ()=>{ updateDailyBalances(); scheduleSave(); });
+  }
+  updateDailyBalances();
+}
+
+function calculate(){
+  const totalExpenses = parseFloat(totalExpensesEl.textContent) || 0;
+  const monthlyIncome = parseFloat(monthlyIncomeEl.value) || 0;
+  const free = monthlyIncome - totalExpenses;
+  freeMoneyEl.value = free.toFixed(0);
+  const daysCount = parseInt(daysCountEl.value,10) || 30;
+  const dailyBudget = (free/daysCount) || 0;
+  dailyBudgetEl.value = dailyBudget.toFixed(2);
+  mashaBudgetEl.value = (dailyBudget/2).toFixed(2);
+  ilyaBudgetEl.value = (dailyBudget/2).toFixed(2);
+  updateDailyBalances();
+}
+
+function updateDailyBalances(){
+  const dailyBudget = parseFloat(dailyBudgetEl.value) || 0;
+  const daysCount = parseInt(daysCountEl.value,10) || 30;
+  const free = parseFloat(freeMoneyEl.value) || 0;
+  let totalMasha=0,totalIlya=0;
+  for(let i=1;i<=daysCount;i++){
+    const m = parseFloat(document.getElementById(`masha-${i}`)?.value) || 0;
+    const p = parseFloat(document.getElementById(`ilya-${i}`)?.value) || 0;
+    const bal = dailyBudget - (m+p);
+    const div = document.getElementById(`balance-${i}`);
+    if(div){
+      div.textContent = bal.toFixed(2);
+      div.className = 'day-balance ' + (bal>=0 ? 'pos' : 'neg');
+    }
+    totalMasha += m; totalIlya += p;
+  }
+  const totalBal = free - (totalMasha + totalIlya);
+  totalMashaEl.textContent = totalMasha.toFixed(2);
+  totalIlyaEl.textContent = totalIlya.toFixed(2);
+  totalBalanceEl.textContent = totalBal.toFixed(2);
+}
+
+function attachUIHandlers(){
+  if(attachUIHandlers.attached) return;
+  attachUIHandlers.attached = true;
+
+  addExpenseBtn.addEventListener('click', ()=>{ addExpenseRow('Новая',0); scheduleSave(); });
+
+  resetExpensesBtn.addEventListener('click', async ()=>{
+    const ok = await showConfirm('Удалить все обязательные траты?');
+    if(ok){ expensesBody.innerHTML=''; updateExpensesTotals(); scheduleSave(); }
+  });
+
+  monthlyIncomeEl.addEventListener('input', ()=>{ calculate(); scheduleSave(); });
+  daysCountEl.addEventListener('change', ()=>{ buildDaysTable(parseInt(daysCountEl.value,10)); scheduleSave(); });
+
+  clearDailyBtn.addEventListener('click', async ()=>{
+    const ok = await showConfirm('Очистить все дневные расходы?');
+    if(ok){
+      const cnt = parseInt(daysCountEl.value,10);
+      for(let i=1;i<=cnt;i++){
+        const m=document.getElementById(`masha-${i}`);
+        const p=document.getElementById(`ilya-${i}`);
+        if(m) m.value=0; if(p) p.value=0;
+      }
+      updateDailyBalances(); scheduleSave();
+    }
+  });
+
+  fullResetBtn.addEventListener('click', async ()=>{
+    const ok = await showConfirm('Полный сброс всех данных комнаты?');
+    if(ok){
+      expensesBody.innerHTML=''; monthlyIncomeEl.value=0; daysCountEl.value=30;
+      buildDaysTable(30); calculate(); scheduleSave();
+    }
+  });
+}
+
+// ---------- ОСНОВНОЙ ПОТОК ----------
+joinBtn.addEventListener('click', async ()=>{
+  let id = roomInput.value.trim();
+  if(!id) id = uid(10);
+  try{
+    await signInAnonymously(auth);
+    joinBtn.disabled = true; joinBtn.textContent = 'Подключаюсь...';
+    await joinRoom(id);
+    joinBtn.style.display = 'none';
+    roomInput.style.display = 'none';
+    copyLinkBtn.style.display = 'inline-block';
+    shareBtn.style.display = 'inline-block';
+    joinBtn.disabled = false; joinBtn.textContent = 'Создать/Подключиться';
+  }catch(e){ console.error(e); alert('Ошибка подключения: '+e.message); joinBtn.disabled=false; joinBtn.textContent='Создать/Подключиться'; }
+});
+
+copyLinkBtn.addEventListener('click', ()=>{
+  const url = new URL(location.href);
+  url.searchParams.set('room', room);
+  navigator.clipboard.writeText(url.toString());
+  copyLinkBtn.textContent = 'Скопировано';
+  setTimeout(()=>copyLinkBtn.textContent='Копировать ссылку',1500);
+});
+
+shareBtn.addEventListener('click', async ()=>{
+  if(navigator.share){
+    const url = new URL(location.href); url.searchParams.set('room', room);
+    try{ await navigator.share({title:'Бюджет — комната '+room, text:'Откройте для синхронизации', url: url.toString() }); }
+    catch(e){ console.warn(e); }
+  } else {
+    alert('Web Share не доступен в этом браузере.');
+  }
+});
+
+(async function autoJoin(){
+  const params = new URLSearchParams(location.search);
+  const r = params.get('room') || localStorage.getItem('budget_room') || '';
+  if(r){ roomInput.value = r; joinBtn.click(); }
+})();
+
+onAuthStateChanged(auth, user=>{ if(user){ /* ok */ } });
+</script>
+</body>
+</html>
