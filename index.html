@@ -239,7 +239,7 @@ tfoot td {
       </table>
       <div style="margin-top:10px" class="row-actions">
         <button class="btn small" id="addExpense">Добавить категорию</button>
-        <button class="btn ghost small" id="resetExpenses">Сбросить траты</button>
+        <button class="btn ghost small danger" id="resetExpenses">Сбросить траты</button>
       </div>
     </div>
 
@@ -256,19 +256,39 @@ tfoot td {
         </div>
         <div>
           <label>Свободные средства</label>
-          <input id="freeMoney" readonly />
+          <input id="freeMoney" style="width: 100%;
+    padding: 8px 10px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text);" readonly />
         </div>
         <div>
           <label>Можно тратить в день</label>
-          <input id="dailyBudget" readonly />
+          <input id="dailyBudget" style="width: 100%;
+    padding: 8px 10px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text);" readonly />
         </div>
         <div>
           <label>Маша (в день)</label>
-          <input id="mashaBudget" readonly />
+          <input id="mashaBudget" style="width: 100%;
+    padding: 8px 10px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text);" readonly />
         </div>
         <div>
           <label>Илья (в день)</label>
-          <input id="ilyaBudget" readonly />
+          <input id="ilyaBudget" style="width: 100%;
+    padding: 8px 10px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text);" readonly />
         </div>
       </div>
     </div>
@@ -494,7 +514,7 @@ function addExpenseRow(cat='', amt=0){
   tr.innerHTML = `
     <td><input data-cat type="text" value="${escapeHtml(cat)}" placeholder="Категория" class="small"></td>
     <td><input data-amt type="number" min="0" value="${amt}" class="small"></td>
-    <td><button class="btn ghost small remove">Удалить</button></td>
+    <td><button class="btn ghost small remove danger">Удалить</button></td>
   `;
   expensesBody.appendChild(tr);
   const catInput = tr.querySelector('[data-cat]');
