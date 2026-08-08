@@ -173,9 +173,9 @@ function calculationDate(period) {
 function render(state) {
   currentState = state;
   const { period, incomeItems, fixedExpenses, transactions } = state;
-  const summary = calculateAllowance({ period, incomeItems, fixedExpenses, transactions, date: calculationDate(period) });
+  const summary = calculateAllowance({ period, incomeItems, fixedExpenses, transactions });
   elements.periodRange.textContent = formatDateRange(period.startDate, period.endDate);
-  elements.periodStatus.textContent = period.status;
+  elements.periodStatus.textContent = summary.status;
   elements.totalIncome.textContent = money(summary.totalIncome);
   elements.totalFixed.textContent = money(summary.totalFixed);
   elements.discretionaryPool.textContent = money(summary.discretionaryPool);
