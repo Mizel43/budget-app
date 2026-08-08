@@ -112,6 +112,17 @@ export const createIncomeItem = (budgetId, periodId, item) => createItem(budgetI
 export const createFixedExpense = (budgetId, periodId, item) => createItem(budgetId, periodId, 'fixedExpenses', item);
 export const createTransaction = (budgetId, periodId, item) => createItem(budgetId, periodId, 'transactions', item);
 
+export async function updatePeriodItem(budgetId, periodId, collectionName, itemId, changes) {
+  const timestamp = serverTimestamp();
+  const batch = writeBatch(db);
+  batch.set(doc(periodCollection(budgetId, periodId, collectionName), itemId), {
+    ...changes,
+    updatedAt: timestamp,
+  }, { merge: true });
+  batch.set(budgetRef(budgetId), { updatedAt: timestamp }, { merge: true });
+  await batch.commit();
+}
+
 export async function removePeriodItem(budgetId, periodId, collectionName, itemId) {
   const batch = writeBatch(db);
   batch.delete(doc(periodCollection(budgetId, periodId, collectionName), itemId));

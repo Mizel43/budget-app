@@ -9,18 +9,30 @@ import {
   migrateLegacyBudget,
   removePeriodItem,
   subscribeToBudget,
+  updatePeriodItem,
 } from './repository.js';
 import { calculateAllowance } from './calculations.js';
 import { addDays, compareDateKeys, formatDateRange, todayDateKey } from './dates.js';
 import { legacyPayload } from './migration.js';
+import {
+  formatCompactDateRange,
+  formatMoney,
+  formatPeriodStatus,
+  formatTodayDate,
+  parseMoneyInput,
+} from './presentation.js';
 
 const elements = Object.fromEntries([
-  'app', 'startNotice', 'errorNotice', 'budgetInput', 'joinButton', 'joinControls', 'shareControls',
-  'copyLinkButton', 'shareButton', 'budgetId', 'status', 'periodRange', 'periodStatus', 'totalIncome',
-  'totalFixed', 'discretionaryPool', 'allowance', 'incomeItems', 'fixedExpenses', 'transactions',
-  'transactionsEmpty', 'addIncomeButton', 'addFixedButton', 'addTransactionButton', 'migrationDialog',
-  'migrationForm', 'legacyStartDate', 'migrationPreview', 'cancelMigrationButton', 'confirmMigrationButton',
-  'editorDialog', 'editorForm', 'editorTitle', 'editorFields', 'cancelEditorButton',
+  'app', 'welcome', 'startNotice', 'errorNotice', 'budgetInput', 'joinButton', 'createBudgetButton',
+  'copyLinkButton', 'shareButton', 'budgetId', 'status', 'bottomNav', 'todayDate', 'periodRange',
+  'budgetPeriodRange', 'periodStatus', 'totalIncome', 'totalFixed', 'discretionaryPool', 'allowance',
+  'remainingPeriod', 'daysRemaining', 'activePeriodContent', 'periodState', 'periodStateLabel',
+  'periodStateTitle', 'periodStateText', 'periodStateAction', 'quickExpenseCard', 'quickExpenseForm',
+  'quickExpenseAmount', 'quickExpenseButton', 'todayTransactions', 'todayTransactionsEmpty',
+  'todayTransactionsCard', 'transactionCount', 'incomeItems', 'fixedExpenses', 'addIncomeButton', 'addFixedButton',
+  'migrationDialog', 'migrationForm', 'legacyStartDate', 'migrationPreview', 'cancelMigrationButton',
+  'confirmMigrationButton', 'editorDialog', 'editorForm', 'editorTitle', 'editorFields',
+  'cancelEditorButton',
 ].map(id => [id, document.getElementById(id)]));
 
 let activeBudgetId = null;
@@ -31,10 +43,6 @@ function randomId(length = 10) {
   const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
   const values = crypto.getRandomValues(new Uint8Array(length));
   return Array.from(values, value => alphabet[value % alphabet.length]).join('');
-}
-
-function money(value) {
-  return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 2 }).format(Number(value) || 0);
 }
 
 function showError(error) {
@@ -59,6 +67,23 @@ function rememberBudget(budgetId) {
   localStorage.setItem('budget_id', budgetId);
   localStorage.removeItem('budget_room');
   history.replaceState(null, '', canonicalUrl(budgetId));
+}
+
+function switchView(target) {
+  const validTarget = ['today', 'budget', 'history', 'settings'].includes(target) ? target : 'today';
+  document.querySelectorAll('[data-view]').forEach(view => {
+    const active = view.dataset.view === validTarget;
+    view.hidden = !active;
+    view.classList.toggle('active', active);
+  });
+  document.querySelectorAll('.nav-item').forEach(button => {
+    const active = button.dataset.target === validTarget;
+    button.classList.toggle('active', active);
+    if (active) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  });
+  if (location.hash !== `#${validTarget}`) history.replaceState(null, '', `${location.pathname}${location.search}#${validTarget}`);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function migrationChoice(legacyData) {
@@ -110,6 +135,7 @@ function openEditor({ title, fields }) {
         value: field.value ?? '',
         required: field.required ?? true,
       });
+      if (field.inputMode) input.inputMode = field.inputMode;
       if (field.min != null) input.min = String(field.min);
       if (field.max != null) input.max = String(field.max);
       if (field.step != null) input.step = String(field.step);
@@ -128,6 +154,7 @@ function openEditor({ title, fields }) {
     };
     elements.cancelEditorButton.onclick = () => close(null);
     elements.editorDialog.showModal();
+    elements.editorFields.querySelector('input')?.focus();
   });
 }
 
@@ -140,7 +167,7 @@ function actionButton(label, className, action) {
   return button;
 }
 
-function renderRows(target, rows, cells, collectionName) {
+function renderBudgetRows(target, rows, cells, collectionName) {
   target.replaceChildren();
   rows.forEach(row => {
     const tableRow = document.createElement('tr');
@@ -163,63 +190,174 @@ function renderRows(target, rows, cells, collectionName) {
   });
 }
 
-function calculationDate(period) {
-  const today = todayDateKey();
-  if (compareDateKeys(today, period.startDate) < 0) return period.startDate;
-  if (compareDateKeys(today, period.endDate) > 0) return period.endDate;
-  return today;
+function iconButton(label, iconPath, action, danger = false) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `icon-button${danger ? ' danger' : ''}`;
+  button.setAttribute('aria-label', label);
+  button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${iconPath}"/></svg>`;
+  button.addEventListener('click', action);
+  return button;
+}
+
+function transactionTime(transaction) {
+  const date = transaction.createdAt?.toDate?.();
+  return date ? date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : 'Сегодня';
+}
+
+async function editTodayTransaction(transaction) {
+  const values = await openEditor({
+    title: 'Исправить расход',
+    fields: [{ name: 'amount', label: 'Сумма', type: 'number', inputMode: 'decimal', min: .01, step: .01, value: transaction.amount }],
+  });
+  if (!values) return;
+  try {
+    await updatePeriodItem(activeBudgetId, currentState.period.id, 'transactions', transaction.id, { amount: Number(values.amount) });
+  } catch (error) {
+    showError(error);
+  }
+}
+
+async function deleteTodayTransaction(transaction) {
+  if (!confirm(`Удалить расход ${formatMoney(transaction.amount)}?`)) return;
+  try {
+    await removePeriodItem(activeBudgetId, currentState.period.id, 'transactions', transaction.id);
+  } catch (error) {
+    showError(error);
+  }
+}
+
+function renderTodayTransactions(transactions, date) {
+  const todayTransactions = transactions
+    .filter(item => item.date === date)
+    .sort((a, b) => {
+      const left = a.createdAt?.toMillis?.() ?? 0;
+      const right = b.createdAt?.toMillis?.() ?? 0;
+      return right - left || b.id.localeCompare(a.id);
+    });
+
+  elements.todayTransactions.replaceChildren();
+  todayTransactions.forEach(transaction => {
+    const item = document.createElement('li');
+    item.className = 'transaction-item';
+
+    const paw = document.createElement('span');
+    paw.className = 'transaction-paw';
+    paw.textContent = '●';
+    paw.setAttribute('aria-hidden', 'true');
+
+    const details = document.createElement('div');
+    details.className = 'transaction-details';
+    const amount = document.createElement('strong');
+    amount.textContent = formatMoney(transaction.amount);
+    const time = document.createElement('span');
+    time.textContent = transactionTime(transaction);
+    details.append(amount, time);
+
+    const actions = document.createElement('div');
+    actions.className = 'transaction-actions';
+    actions.append(
+      iconButton('Изменить расход', 'M4 20h4L19 9l-4-4L4 16v4Zm9-13 4 4', () => editTodayTransaction(transaction)),
+      iconButton('Удалить расход', 'M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5', () => deleteTodayTransaction(transaction), true),
+    );
+    item.append(paw, details, actions);
+    elements.todayTransactions.appendChild(item);
+  });
+  elements.transactionCount.textContent = String(todayTransactions.length);
+  elements.todayTransactionsEmpty.hidden = todayTransactions.length > 0;
+}
+
+function renderPeriodState(period, summary) {
+  const active = summary.status === 'active';
+  elements.activePeriodContent.hidden = !active;
+  elements.quickExpenseCard.hidden = !active;
+  elements.todayTransactionsCard.hidden = !active;
+  elements.periodState.hidden = active;
+  if (active) return;
+
+  if (summary.status === 'upcoming') {
+    elements.periodStateLabel.textContent = 'Период ещё не начался';
+    elements.periodStateTitle.textContent = `Старт ${formatTodayDate(period.startDate)}`;
+    elements.periodStateText.textContent = 'Проверьте суммы и даты — дневной лимит появится в день начала периода.';
+    elements.periodStateAction.textContent = 'Перейти к бюджету';
+    elements.periodStateAction.onclick = () => switchView('budget');
+  } else {
+    elements.periodStateLabel.textContent = 'Период завершён';
+    elements.periodStateTitle.textContent = 'Расчётный период закончился';
+    elements.periodStateText.textContent = 'Старый дневной лимит больше не показывается. Откройте историю, чтобы продолжить.';
+    elements.periodStateAction.textContent = 'Перейти в историю';
+    elements.periodStateAction.onclick = () => switchView('history');
+  }
 }
 
 function render(state) {
   currentState = state;
   const { period, incomeItems, fixedExpenses, transactions } = state;
-  const summary = calculateAllowance({ period, incomeItems, fixedExpenses, transactions });
-  elements.periodRange.textContent = formatDateRange(period.startDate, period.endDate);
-  elements.periodStatus.textContent = summary.status;
-  elements.totalIncome.textContent = money(summary.totalIncome);
-  elements.totalFixed.textContent = money(summary.totalFixed);
-  elements.discretionaryPool.textContent = money(summary.discretionaryPool);
-  elements.allowance.textContent = money(summary.availableNow);
+  const today = todayDateKey();
+  const summary = calculateAllowance({ period, incomeItems, fixedExpenses, transactions, date: today });
+  const compactRange = formatCompactDateRange(period.startDate, period.endDate);
 
-  renderRows(
+  elements.todayDate.textContent = formatTodayDate(today);
+  elements.periodRange.textContent = compactRange;
+  elements.budgetPeriodRange.textContent = formatDateRange(period.startDate, period.endDate);
+  elements.periodStatus.textContent = formatPeriodStatus(summary.status);
+  elements.totalIncome.textContent = formatMoney(summary.totalIncome);
+  elements.totalFixed.textContent = formatMoney(summary.totalFixed);
+  elements.discretionaryPool.textContent = formatMoney(summary.discretionaryPool);
+  const allowanceText = formatMoney(summary.availableNow);
+  elements.allowance.textContent = allowanceText;
+  elements.allowance.classList.toggle('compact', allowanceText.length > 10);
+  elements.allowance.classList.toggle('extra-compact', allowanceText.length > 14);
+  elements.remainingPeriod.textContent = formatMoney(summary.remainingDiscretionary);
+  elements.daysRemaining.textContent = String(summary.daysRemainingInclusive ?? 0);
+
+  renderPeriodState(period, summary);
+  renderTodayTransactions(transactions, today);
+  renderBudgetRows(
     elements.incomeItems,
     [...incomeItems].sort((a, b) => compareDateKeys(a.date, b.date)),
-    item => [item.label, item.date, money(item.amount)],
+    item => [item.label, item.date, formatMoney(item.amount)],
     'incomeItems',
   );
-  renderRows(
+  renderBudgetRows(
     elements.fixedExpenses,
     [...fixedExpenses].sort((a, b) => a.category.localeCompare(b.category, 'ru')),
-    item => [item.category, money(item.amount)],
+    item => [item.category, formatMoney(item.amount)],
     'fixedExpenses',
   );
-  renderRows(
-    elements.transactions,
-    [...transactions].sort((a, b) => compareDateKeys(b.date, a.date)),
-    item => [item.date, money(item.amount)],
-    'transactions',
-  );
-  elements.transactionsEmpty.hidden = transactions.length > 0;
-  elements.status.textContent = 'Синхронизировано';
 }
 
 function subscribe(periodId) {
   unsubscribe?.();
   unsubscribe = subscribeToBudget(activeBudgetId, periodId, render, error => {
     elements.status.textContent = 'Ошибка синхронизации';
+    elements.status.hidden = false;
     showError(error);
   });
 }
 
-async function connect(rawId) {
+async function connect(rawId, createNew = false) {
   clearError();
-  const budgetId = rawId.trim() || randomId();
+  const requestedId = rawId.trim();
+  if (!createNew && !requestedId) {
+    elements.budgetInput.setCustomValidity('Введите ID бюджета');
+    elements.budgetInput.reportValidity();
+    return;
+  }
+  elements.budgetInput.setCustomValidity('');
+  const budgetId = requestedId || randomId();
   elements.joinButton.disabled = true;
-  elements.joinButton.textContent = 'Подключение…';
+  elements.createBudgetButton.disabled = true;
+  const oldJoinLabel = elements.joinButton.textContent;
+  const oldCreateLabel = elements.createBudgetButton.textContent;
+  if (createNew) elements.createBudgetButton.textContent = 'Создаём…';
+  else elements.joinButton.textContent = 'Открываем…';
+
   try {
     await signInAnonymously(auth);
     let inspection = await inspectBudget(budgetId);
     if (inspection.kind === 'missing') {
+      if (!createNew) throw new Error('Бюджет с таким ID не найден');
       await createBudget(budgetId);
       inspection = await inspectBudget(budgetId);
     }
@@ -239,22 +377,57 @@ async function connect(rawId) {
     rememberBudget(budgetId);
     elements.budgetId.textContent = budgetId;
     elements.app.hidden = false;
+    elements.welcome.hidden = true;
     elements.startNotice.hidden = true;
-    elements.joinControls.hidden = true;
-    elements.shareControls.hidden = false;
+    elements.bottomNav.hidden = false;
+    elements.status.hidden = true;
     subscribe(inspection.data.currentPeriodId);
+    const requestedView = location.hash.slice(1);
+    switchView(['today', 'budget', 'history', 'settings'].includes(requestedView) ? requestedView : 'today');
   } catch (error) {
     showError(error);
   } finally {
     elements.joinButton.disabled = false;
-    elements.joinButton.textContent = 'Открыть';
+    elements.createBudgetButton.disabled = false;
+    elements.joinButton.textContent = oldJoinLabel;
+    elements.createBudgetButton.textContent = oldCreateLabel;
   }
 }
 
+document.querySelectorAll('.nav-item').forEach(button => button.addEventListener('click', () => switchView(button.dataset.target)));
+window.addEventListener('hashchange', () => activeBudgetId && switchView(location.hash.slice(1)));
+
 elements.joinButton.addEventListener('click', () => connect(elements.budgetInput.value));
+elements.createBudgetButton.addEventListener('click', () => connect('', true));
+elements.budgetInput.addEventListener('input', () => elements.budgetInput.setCustomValidity(''));
 elements.budgetInput.addEventListener('keydown', event => {
   if (event.key === 'Enter') connect(elements.budgetInput.value);
 });
+
+elements.quickExpenseForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  if (!currentState || calculateAllowance({ ...currentState, date: todayDateKey() }).status !== 'active') return;
+  const amount = parseMoneyInput(elements.quickExpenseAmount.value);
+  if (amount == null) {
+    elements.quickExpenseAmount.setCustomValidity('Введите сумму больше нуля, не более двух знаков после запятой');
+    elements.quickExpenseAmount.reportValidity();
+    return;
+  }
+  elements.quickExpenseAmount.setCustomValidity('');
+  const originalValue = elements.quickExpenseAmount.value;
+  elements.quickExpenseAmount.value = '';
+  elements.quickExpenseButton.disabled = true;
+  try {
+    await createTransaction(activeBudgetId, currentState.period.id, { date: todayDateKey(), amount });
+  } catch (error) {
+    elements.quickExpenseAmount.value = originalValue;
+    showError(error);
+  } finally {
+    elements.quickExpenseButton.disabled = false;
+    elements.quickExpenseAmount.focus();
+  }
+});
+elements.quickExpenseAmount.addEventListener('input', () => elements.quickExpenseAmount.setCustomValidity(''));
 
 elements.copyLinkButton.addEventListener('click', async () => {
   try {
@@ -268,9 +441,12 @@ elements.copyLinkButton.addEventListener('click', async () => {
 
 elements.shareButton.addEventListener('click', async () => {
   const url = canonicalUrl(activeBudgetId).toString();
-  if (!navigator.share) return navigator.clipboard.writeText(url);
+  if (!navigator.share) {
+    try { await navigator.clipboard.writeText(url); } catch (error) { showError(error); }
+    return;
+  }
   try {
-    await navigator.share({ title: 'Общий бюджет', text: 'Откройте общий бюджет', url });
+    await navigator.share({ title: 'Лапки — общий бюджет', text: 'Откройте наш общий бюджет', url });
   } catch (error) {
     if (error.name !== 'AbortError') showError(error);
   }
@@ -280,30 +456,27 @@ elements.addIncomeButton.addEventListener('click', async () => {
   const values = await openEditor({ title: 'Новый доход', fields: [
     { name: 'label', label: 'Название', value: 'Доход' },
     { name: 'date', label: 'Дата', type: 'date', value: currentState.period.startDate, min: currentState.period.startDate, max: currentState.period.endDate },
-    { name: 'amount', label: 'Сумма', type: 'number', min: 0, step: .01 },
+    { name: 'amount', label: 'Сумма', type: 'number', inputMode: 'decimal', min: 0, step: .01 },
   ] });
   if (!values) return;
-  try { await createIncomeItem(activeBudgetId, currentState.period.id, { ...values, amount: Number(values.amount) }); } catch (error) { showError(error); }
+  try {
+    await createIncomeItem(activeBudgetId, currentState.period.id, { ...values, amount: Number(values.amount) });
+  } catch (error) {
+    showError(error);
+  }
 });
 
 elements.addFixedButton.addEventListener('click', async () => {
   const values = await openEditor({ title: 'Обязательный расход', fields: [
     { name: 'category', label: 'Категория' },
-    { name: 'amount', label: 'Сумма', type: 'number', min: 0, step: .01 },
+    { name: 'amount', label: 'Сумма', type: 'number', inputMode: 'decimal', min: 0, step: .01 },
   ] });
   if (!values) return;
-  try { await createFixedExpense(activeBudgetId, currentState.period.id, { ...values, amount: Number(values.amount) }); } catch (error) { showError(error); }
-});
-
-elements.addTransactionButton.addEventListener('click', async () => {
-  const period = currentState.period;
-  const defaultDate = calculationDate(period);
-  const values = await openEditor({ title: 'Новый расход', fields: [
-    { name: 'date', label: 'Дата', type: 'date', value: defaultDate, min: period.startDate, max: period.endDate },
-    { name: 'amount', label: 'Сумма', type: 'number', min: .01, step: .01 },
-  ] });
-  if (!values) return;
-  try { await createTransaction(activeBudgetId, period.id, { date: values.date, amount: Number(values.amount) }); } catch (error) { showError(error); }
+  try {
+    await createFixedExpense(activeBudgetId, currentState.period.id, { ...values, amount: Number(values.amount) });
+  } catch (error) {
+    showError(error);
+  }
 });
 
 const params = new URLSearchParams(location.search);

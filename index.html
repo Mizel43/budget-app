@@ -2,103 +2,186 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#fff8fb">
-  <title>Общий бюджет</title>
+  <title>Лапки — общий бюджет</title>
   <link rel="stylesheet" href="./css/styles.css">
 </head>
 <body>
+  <div class="paw-pattern" aria-hidden="true"></div>
   <main class="shell">
     <header class="page-header">
-      <div>
-        <p class="eyebrow">Budget App V2</p>
-        <h1>Общий бюджет</h1>
-      </div>
-      <div class="join-controls" id="joinControls">
-        <label class="sr-only" for="budgetInput">ID бюджета</label>
-        <input id="budgetInput" type="text" autocomplete="off" placeholder="ID бюджета">
-        <button class="button" id="joinButton" type="button">Открыть</button>
-      </div>
-      <div class="share-controls" id="shareControls" hidden>
-        <button class="button secondary" id="copyLinkButton" type="button">Копировать ссылку</button>
-        <button class="button secondary" id="shareButton" type="button">Поделиться</button>
-      </div>
+      <a class="brand" href="#today" aria-label="Лапки, на главную">
+        <span class="brand-mark" aria-hidden="true">
+          <span class="brand-ear brand-ear-left"></span>
+          <span class="brand-ear brand-ear-right"></span>
+          <svg viewBox="0 0 48 48" focusable="false">
+            <circle cx="24" cy="24" r="20" fill="currentColor"/>
+            <circle cx="18" cy="22" r="2" fill="white"/>
+            <circle cx="30" cy="22" r="2" fill="white"/>
+            <path d="M20 30c2.5 2.6 5.5 2.6 8 0M24 25.5l-2 2h4z" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <span>Лапки</span>
+      </a>
+      <span class="sync-status" id="status" hidden>Синхронизация…</span>
     </header>
 
-    <p class="notice" id="startNotice">Введите ID существующего бюджета или оставьте поле пустым, чтобы создать новый.</p>
+    <section class="welcome card" id="welcome">
+      <div class="welcome-copy">
+        <p class="eyebrow">Общий бюджет без лишнего</p>
+        <h1>Сколько можно потратить сегодня?</h1>
+        <p>Создайте новый бюджет или откройте общий по ссылке — дальше «Лапки» посчитают безопасную сумму на день.</p>
+      </div>
+      <div class="welcome-actions" id="joinControls">
+        <label for="budgetInput">ID существующего бюджета</label>
+        <div class="join-row">
+          <input id="budgetInput" type="text" autocomplete="off" placeholder="Например, m4p8k2…">
+          <button class="button secondary" id="joinButton" type="button">Открыть</button>
+        </div>
+        <span class="choice-divider">или</span>
+        <button class="button button-wide" id="createBudgetButton" type="button">Создать новый бюджет</button>
+      </div>
+    </section>
+
+    <p class="notice" id="startNotice">Для совместного бюджета достаточно отправить близкому человеку одну ссылку.</p>
     <p class="notice error" id="errorNotice" role="alert" hidden></p>
 
     <section id="app" hidden>
-      <section class="card connection-card" aria-label="Состояние подключения">
-        <div>
-          <span class="muted">Бюджет</span>
-          <strong id="budgetId"></strong>
-        </div>
-        <span class="status" id="status">Подключение…</span>
+      <section class="view active" id="todayView" data-view="today" aria-labelledby="todayNavLabel">
+        <section class="today-hero card cat-card" id="todayHero">
+          <div class="cat-ears" aria-hidden="true"><span></span><span></span></div>
+          <div class="hero-heading">
+            <div>
+              <p class="today-date" id="todayDate">—</p>
+              <p class="period-caption">Период: <span id="periodRange">—</span></p>
+            </div>
+            <svg class="cat-mascot" viewBox="0 0 96 96" aria-hidden="true" focusable="false">
+              <path d="M24 35 20 12l23 15h10l23-15-4 23c9 8 14 19 14 31 0 12-8 19-19 19H29C18 85 10 78 10 66c0-12 5-23 14-31Z" fill="#fff" stroke="#e7a7c1" stroke-width="4" stroke-linejoin="round"/>
+              <path d="m25 20 13 9-11 4Zm46 0-13 9 11 4Z" fill="#ffd6e5"/>
+              <circle cx="35" cy="52" r="3.5" fill="#40333b"/><circle cx="61" cy="52" r="3.5" fill="#40333b"/>
+              <path d="m48 57-4 4h8Zm-10 10c6 6 14 6 20 0M28 60l-13-3m13 9-13 3m53-9 13-3m-13 9 13 3" fill="none" stroke="#9b7283" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+
+          <div class="active-period-content" id="activePeriodContent">
+            <p class="hero-label">Сегодня можно потратить</p>
+            <strong class="hero-amount" id="allowance">0 ₽</strong>
+            <div class="supporting-metrics">
+              <p><span>Осталось до конца периода</span><strong id="remainingPeriod">0 ₽</strong></p>
+              <p><span>Дней осталось</span><strong id="daysRemaining">0</strong></p>
+            </div>
+          </div>
+
+          <div class="period-state" id="periodState" hidden>
+            <p class="hero-label" id="periodStateLabel"></p>
+            <h1 id="periodStateTitle"></h1>
+            <p id="periodStateText"></p>
+            <button class="button" id="periodStateAction" type="button"></button>
+          </div>
+        </section>
+
+        <section class="quick-expense card" id="quickExpenseCard">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Быстрая запись</p>
+              <h2>Добавить расход</h2>
+            </div>
+            <span class="paw-badge" aria-hidden="true">●</span>
+          </div>
+          <form class="expense-form" id="quickExpenseForm">
+            <label class="sr-only" for="quickExpenseAmount">Сумма расхода</label>
+            <div class="money-input">
+              <input id="quickExpenseAmount" name="amount" type="text" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="quickExpenseHint">
+              <span aria-hidden="true">₽</span>
+            </div>
+            <button class="button paw-button" id="quickExpenseButton" type="submit">
+              <span aria-hidden="true">＋</span> Записать расход
+            </button>
+          </form>
+          <p class="form-hint" id="quickExpenseHint">Дата подставится автоматически — сегодня.</p>
+        </section>
+
+        <section class="today-transactions card" id="todayTransactionsCard">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Сегодня</p>
+              <h2>Расходы за день</h2>
+            </div>
+            <span class="transaction-count" id="transactionCount">0</span>
+          </div>
+          <ul class="transaction-list" id="todayTransactions"></ul>
+          <p class="empty-state" id="todayTransactionsEmpty">Здесь появятся сегодняшние расходы.</p>
+        </section>
       </section>
 
-      <section class="card">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Текущий период</p>
-            <h2 id="periodRange">—</h2>
-          </div>
-          <span class="pill" id="periodStatus">active</span>
+      <section class="view" id="budgetView" data-view="budget" hidden aria-labelledby="budgetNavLabel">
+        <div class="view-heading">
+          <p class="eyebrow">Текущий период</p>
+          <h1>Бюджет</h1>
+          <p id="budgetPeriodRange">—</p>
         </div>
-        <div class="summary-grid">
+        <section class="summary-grid" aria-label="Сводка бюджета">
           <div class="summary-item"><span>Доход</span><strong id="totalIncome">0 ₽</strong></div>
           <div class="summary-item"><span>Обязательные</span><strong id="totalFixed">0 ₽</strong></div>
           <div class="summary-item"><span>Свободный пул</span><strong id="discretionaryPool">0 ₽</strong></div>
-          <div class="summary-item accent"><span>Лимит на сегодня</span><strong id="allowance">0 ₽</strong></div>
-        </div>
-      </section>
-
-      <section class="two-column">
-        <section class="card">
-          <div class="section-heading">
-            <h2>Доходы</h2>
-            <button class="button small" id="addIncomeButton" type="button">Добавить</button>
-          </div>
-          <div class="table-scroll">
-            <table>
-              <thead><tr><th>Название</th><th>Дата</th><th>Сумма</th><th></th></tr></thead>
-              <tbody id="incomeItems"></tbody>
-            </table>
-          </div>
+          <div class="summary-item"><span>Статус периода</span><strong id="periodStatus">—</strong></div>
         </section>
-
-        <section class="card">
-          <div class="section-heading">
-            <h2>Обязательные расходы</h2>
-            <button class="button small" id="addFixedButton" type="button">Добавить</button>
-          </div>
-          <div class="table-scroll">
-            <table>
-              <thead><tr><th>Категория</th><th>Сумма</th><th></th></tr></thead>
-              <tbody id="fixedExpenses"></tbody>
-            </table>
-          </div>
+        <section class="two-column">
+          <section class="card">
+            <div class="section-heading"><h2>Доходы</h2><button class="button small" id="addIncomeButton" type="button">Добавить</button></div>
+            <div class="table-scroll"><table><thead><tr><th>Название</th><th>Дата</th><th>Сумма</th><th></th></tr></thead><tbody id="incomeItems"></tbody></table></div>
+          </section>
+          <section class="card">
+            <div class="section-heading"><h2>Обязательные расходы</h2><button class="button small" id="addFixedButton" type="button">Добавить</button></div>
+            <div class="table-scroll"><table><thead><tr><th>Категория</th><th>Сумма</th><th></th></tr></thead><tbody id="fixedExpenses"></tbody></table></div>
+          </section>
         </section>
       </section>
 
-      <section class="card">
-        <div class="section-heading">
-          <div>
-            <h2>Ежедневные расходы</h2>
-            <p class="muted">Каждая операция хранится отдельно и безопасно синхронизируется.</p>
+      <section class="view" id="historyView" data-view="history" hidden aria-labelledby="historyNavLabel">
+        <div class="view-heading"><p class="eyebrow">Архив периодов</p><h1>История</h1></div>
+        <section class="card placeholder-card">
+          <span class="placeholder-icon" aria-hidden="true">🐾</span>
+          <h2>История появится здесь</h2>
+          <p>Завершённые расчётные периоды будут доступны в этом разделе.</p>
+        </section>
+      </section>
+
+      <section class="view" id="settingsView" data-view="settings" hidden aria-labelledby="settingsNavLabel">
+        <div class="view-heading"><p class="eyebrow">Общий доступ</p><h1>Настройки</h1></div>
+        <section class="card settings-card">
+          <div><span class="muted">ID бюджета</span><strong id="budgetId"></strong></div>
+          <p>Отправьте ссылку человеку, с которым ведёте общий бюджет.</p>
+          <div class="share-controls" id="shareControls">
+            <button class="button" id="copyLinkButton" type="button">Копировать ссылку</button>
+            <button class="button secondary" id="shareButton" type="button">Поделиться</button>
           </div>
-          <button class="button small" id="addTransactionButton" type="button">Добавить расход</button>
-        </div>
-        <div class="table-scroll">
-          <table>
-            <thead><tr><th>Дата</th><th>Сумма</th><th></th></tr></thead>
-            <tbody id="transactions"></tbody>
-          </table>
-        </div>
-        <p class="empty-state" id="transactionsEmpty">Расходов пока нет.</p>
+        </section>
       </section>
     </section>
   </main>
+
+  <nav class="bottom-nav" id="bottomNav" aria-label="Основная навигация" hidden>
+    <div class="bottom-nav-inner">
+      <button class="nav-item active" type="button" data-target="today" aria-current="page">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v3m10-3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm4 9 2 2 4-5"/></svg>
+        <span id="todayNavLabel">Сегодня</span>
+      </button>
+      <button class="nav-item" type="button" data-target="budget">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h12m0 9h3"/></svg>
+        <span id="budgetNavLabel">Бюджет</span>
+      </button>
+      <button class="nav-item" type="button" data-target="history">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v6h6M5.5 17A8 8 0 1 0 4 9m8-2v5l3 2"/></svg>
+        <span id="historyNavLabel">История</span>
+      </button>
+      <button class="nav-item" type="button" data-target="settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm7-3.5 2-1-2-3-2.2.5L15 7l-.3-2.4h-5.4L9 7 7.2 8.5 5 8l-2 3 2 1-2 1 2 3 2.2-.5L9 17l.3 2.4h5.4L15 17l1.8-1.5L19 16l2-3-2-1Z"/></svg>
+        <span id="settingsNavLabel">Настройки</span>
+      </button>
+    </div>
+  </nav>
 
   <dialog id="migrationDialog" class="dialog">
     <form method="dialog" id="migrationForm">
