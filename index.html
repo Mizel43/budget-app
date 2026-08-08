@@ -13,13 +13,10 @@
     <header class="page-header">
       <a class="brand" href="#today" aria-label="Лапки, на главную">
         <span class="brand-mark" aria-hidden="true">
-          <span class="brand-ear brand-ear-left"></span>
-          <span class="brand-ear brand-ear-right"></span>
           <svg viewBox="0 0 48 48" focusable="false">
-            <circle cx="24" cy="24" r="20" fill="currentColor"/>
-            <circle cx="18" cy="22" r="2" fill="white"/>
-            <circle cx="30" cy="22" r="2" fill="white"/>
-            <path d="M20 30c2.5 2.6 5.5 2.6 8 0M24 25.5l-2 2h4z" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M10 19 8 6l12 8a24 24 0 0 1 8 0L40 6l-2 13c3 4 4 8 4 12 0 8-7 13-18 13S6 39 6 31c0-4 1-8 4-12Z" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            <path d="m11 11 7 5-6 2Zm26 0-7 5 6 2Z" fill="#ffd9e8"/>
+            <path d="M15 28h.1m17.8 0h.1M24 31l-3 2.5 3 2 3-2Zm-7 9c2-3 4-4 7-4s5 1 7 4M13 33 5 31m8 6-8 2m30-6 8-2m-8 6 8 2" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </span>
         <span>Лапки</span>
@@ -51,19 +48,22 @@
               <p class="today-date" id="todayDate">—</p>
               <p class="period-caption">Период: <span id="periodRange">—</span></p>
             </div>
-            <svg class="cat-mascot" viewBox="0 0 96 96" aria-hidden="true" focusable="false">
-              <path d="M24 35 20 12l23 15h10l23-15-4 23c9 8 14 19 14 31 0 12-8 19-19 19H29C18 85 10 78 10 66c0-12 5-23 14-31Z" fill="#fff" stroke="#e7a7c1" stroke-width="4" stroke-linejoin="round"/>
-              <path d="m25 20 13 9-11 4Zm46 0-13 9 11 4Z" fill="#ffd6e5"/>
-              <circle cx="35" cy="52" r="3.5" fill="#40333b"/><circle cx="61" cy="52" r="3.5" fill="#40333b"/>
-              <path d="m48 57-4 4h8Zm-10 10c6 6 14 6 20 0M28 60l-13-3m13 9-13 3m53-9 13-3m-13 9 13 3" fill="none" stroke="#9b7283" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <svg class="cat-mascot" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
+              <path d="M88 80c17-1 23 10 17 19-4 6-12 4-15-1" fill="none" stroke="#e7a7c1" stroke-width="5" stroke-linecap="round"/>
+              <path d="M34 66c2-18 13-29 26-29s24 11 26 29l4 30c1 10-7 16-18 16H48c-11 0-19-6-18-16Z" fill="#fff" stroke="#e7a7c1" stroke-width="4" stroke-linejoin="round"/>
+              <path d="M36 44 31 13l23 16c4-1 8-1 12 0l23-16-5 31c4 6 6 12 6 19 0 18-12 29-30 29S30 81 30 63c0-7 2-13 6-19Z" fill="#fff" stroke="#e7a7c1" stroke-width="4" stroke-linejoin="round"/>
+              <path d="m36 22 15 10-13 5Zm48 0-15 10 13 5Z" fill="#ffd6e5"/>
+              <path d="M45 57h.1m29.8 0h.1" stroke="#40333b" stroke-width="6" stroke-linecap="round"/>
+              <path d="m60 64-5 4 5 3 5-3Z" fill="#d84f87"/>
+              <path d="M48 76c4 5 8 7 12 7s8-2 12-7M42 67 19 63m22 12-22 4m59-12 23-4m-22 12 22 4M47 93v18m26-18v18" fill="none" stroke="#9b7283" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
 
           <div class="active-period-content" id="activePeriodContent">
             <p class="hero-label">Сегодня можно потратить</p>
-            <strong class="hero-amount" id="allowance">0 ₽</strong>
+            <strong class="hero-amount" id="allowance">0 ¥</strong>
             <div class="supporting-metrics">
-              <p><span>Осталось до конца периода</span><strong id="remainingPeriod">0 ₽</strong></p>
+              <p><span>Осталось до конца периода</span><strong id="remainingPeriod">0 ¥</strong></p>
               <p><span>Дней осталось</span><strong id="daysRemaining">0</strong></p>
             </div>
           </div>
@@ -82,13 +82,15 @@
               <p class="eyebrow">Быстрая запись</p>
               <h2>Добавить расход</h2>
             </div>
-            <span class="paw-badge" aria-hidden="true">●</span>
+            <span class="paw-badge" aria-hidden="true">
+              <svg viewBox="0 0 40 40"><ellipse cx="8" cy="14" rx="4" ry="5" transform="rotate(-28 8 14)"/><ellipse cx="16" cy="9" rx="4" ry="5" transform="rotate(-10 16 9)"/><ellipse cx="25" cy="9" rx="4" ry="5" transform="rotate(10 25 9)"/><ellipse cx="33" cy="14" rx="4" ry="5" transform="rotate(28 33 14)"/><path d="M9.5 28c0-5 3.5-10.5 10.5-10.5S30.5 23 30.5 28c0 4-3.4 6.5-6.5 6.5-1.6 0-2.8-.8-4-.8s-2.4.8-4 .8c-3.1 0-6.5-2.5-6.5-6.5Z"/></svg>
+            </span>
           </div>
           <form class="expense-form" id="quickExpenseForm">
             <label class="sr-only" for="quickExpenseAmount">Сумма расхода</label>
             <div class="money-input">
               <input id="quickExpenseAmount" name="amount" type="text" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="quickExpenseHint">
-              <span aria-hidden="true">₽</span>
+              <span aria-hidden="true">¥</span>
             </div>
             <button class="button paw-button" id="quickExpenseButton" type="submit">
               <span aria-hidden="true">＋</span> Записать расход
@@ -121,20 +123,20 @@
           </div>
         </div>
         <section class="summary-grid" aria-label="Сводка бюджета">
-          <div class="summary-item"><span>Доход</span><strong id="totalIncome">0 ₽</strong></div>
-          <div class="summary-item"><span>Обязательные</span><strong id="totalFixed">0 ₽</strong></div>
-          <div class="summary-item"><span>Резерв</span><strong id="reserveSummary">0 ₽</strong></div>
-          <div class="summary-item"><span>Целевой остаток</span><strong id="targetSummary">0 ₽</strong></div>
-          <div class="summary-item"><span>На повседневные расходы</span><strong id="discretionaryPool">0 ₽</strong></div>
+          <div class="summary-item"><span>Доход</span><strong id="totalIncome">0 ¥</strong></div>
+          <div class="summary-item"><span>Обязательные</span><strong id="totalFixed">0 ¥</strong></div>
+          <div class="summary-item"><span>Резерв</span><strong id="reserveSummary">0 ¥</strong></div>
+          <div class="summary-item"><span>Целевой остаток</span><strong id="targetSummary">0 ¥</strong></div>
+          <div class="summary-item"><span>На повседневные расходы</span><strong id="discretionaryPool">0 ¥</strong></div>
           <div class="summary-item"><span>Статус периода</span><strong id="periodStatus">—</strong></div>
         </section>
         <section class="budget-controls card">
           <div class="editable-total">
-            <div><span>Резерв</span><strong id="reserveAmount">0 ₽</strong></div>
+            <div><span>Резерв</span><strong id="reserveAmount">0 ¥</strong></div>
             <button class="button secondary small" id="editReserveButton" type="button">Изменить</button>
           </div>
           <div class="editable-total">
-            <div><span>Целевой остаток</span><strong id="targetEndBalance">0 ₽</strong></div>
+            <div><span>Целевой остаток</span><strong id="targetEndBalance">0 ¥</strong></div>
             <button class="button secondary small" id="editTargetButton" type="button">Изменить</button>
           </div>
         </section>
@@ -154,7 +156,7 @@
         <div class="view-heading"><p class="eyebrow">Архив периодов</p><h1>История</h1></div>
         <section class="history-list" id="historyList" aria-live="polite"></section>
         <section class="card placeholder-card" id="historyEmpty" hidden>
-          <span class="placeholder-icon" aria-hidden="true">🐾</span>
+          <span class="placeholder-icon" aria-hidden="true"><svg viewBox="0 0 40 40"><ellipse cx="8" cy="14" rx="4" ry="5" transform="rotate(-28 8 14)"/><ellipse cx="16" cy="9" rx="4" ry="5" transform="rotate(-10 16 9)"/><ellipse cx="25" cy="9" rx="4" ry="5" transform="rotate(10 25 9)"/><ellipse cx="33" cy="14" rx="4" ry="5" transform="rotate(28 33 14)"/><path d="M9.5 28c0-5 3.5-10.5 10.5-10.5S30.5 23 30.5 28c0 4-3.4 6.5-6.5 6.5-1.6 0-2.8-.8-4-.8s-2.4.8-4 .8c-3.1 0-6.5-2.5-6.5-6.5Z"/></svg></span>
           <h2>Периодов пока нет</h2>
           <p>Созданные расчётные периоды появятся в этом разделе.</p>
         </section>

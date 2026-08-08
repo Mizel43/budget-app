@@ -29,19 +29,19 @@
           const values = {
             todayDate: '9 августа',
             periodRange: '10 июл. — 9 авг.',
-            allowance: '123 456,78 ₽',
-            remainingPeriod: '9 876 543,21 ₽',
+            allowance: '123 456,78 ¥',
+            remainingPeriod: '9 876 543,21 ¥',
             daysRemaining: '12',
             budgetPeriodRange: '10 июля 2026 г. — 9 августа 2026 г.',
             budgetPeriodDays: '31 дн.',
-            totalIncome: '10 000 000 ₽',
-            totalFixed: '1 200 000 ₽',
-            reserveSummary: '800 000 ₽',
-            targetSummary: '500 000 ₽',
-            discretionaryPool: '7 500 000 ₽',
+            totalIncome: '10 000 000 ¥',
+            totalFixed: '1 200 000 ¥',
+            reserveSummary: '800 000 ¥',
+            targetSummary: '500 000 ¥',
+            discretionaryPool: '7 500 000 ¥',
             periodStatus: 'Активен',
-            reserveAmount: '800 000 ₽',
-            targetEndBalance: '500 000 ₽',
+            reserveAmount: '800 000 ¥',
+            targetEndBalance: '500 000 ¥',
           };
           Object.entries(values).forEach(([id, value]) => { doc.getElementById(id).textContent = value; });
 
@@ -49,8 +49,8 @@
           doc.getElementById('transactionCount').textContent = '2';
           doc.getElementById('todayTransactions').innerHTML = `
             <li class="transaction-item">
-              <span class="transaction-paw" aria-hidden="true">●</span>
-              <div class="transaction-details"><strong>12 345,67 ₽</strong><span>12:40</span></div>
+              <span class="transaction-paw" aria-hidden="true"><svg viewBox="0 0 40 40"><ellipse cx="8" cy="14" rx="4" ry="5" transform="rotate(-28 8 14)"/><ellipse cx="16" cy="9" rx="4" ry="5" transform="rotate(-10 16 9)"/><ellipse cx="25" cy="9" rx="4" ry="5" transform="rotate(10 25 9)"/><ellipse cx="33" cy="14" rx="4" ry="5" transform="rotate(28 33 14)"/><path d="M9.5 28c0-5 3.5-10.5 10.5-10.5S30.5 23 30.5 28c0 4-3.4 6.5-6.5 6.5-1.6 0-2.8-.8-4-.8s-2.4.8-4 .8c-3.1 0-6.5-2.5-6.5-6.5Z"/></svg></span>
+              <div class="transaction-details"><strong>12 345,67 ¥</strong><span>12:40</span></div>
               <div class="transaction-actions">
                 <button class="icon-button" type="button" aria-label="Изменить расход">✎</button>
                 <button class="icon-button danger" type="button" aria-label="Удалить расход">×</button>
@@ -58,20 +58,20 @@
             </li>`;
 
           doc.getElementById('incomeItems').innerHTML = `
-            <tr><td>Основной доход с длинным названием</td><td>2026-07-10</td><td>10 000 000 ₽</td><td><div class="table-actions"><button class="button secondary small">Изменить</button><button class="button secondary small danger">Удалить</button></div></td></tr>`;
+            <tr><td>Основной доход с длинным названием</td><td>2026-07-10</td><td>10 000 000 ¥</td><td><div class="table-actions"><button class="button secondary small">Изменить</button><button class="button secondary small danger">Удалить</button></div></td></tr>`;
           doc.getElementById('fixedExpenses').innerHTML = `
-            <tr><td>Обязательный платёж</td><td>1 200 000 ₽</td><td><div class="table-actions"><button class="button secondary small">Изменить</button><button class="button secondary small danger">Удалить</button></div></td></tr>`;
+            <tr><td>Обязательный платёж</td><td>1 200 000 ¥</td><td><div class="table-actions"><button class="button secondary small">Изменить</button><button class="button secondary small danger">Удалить</button></div></td></tr>`;
 
           doc.getElementById('historyEmpty').hidden = true;
           doc.getElementById('historyList').innerHTML = `
             <button class="history-card card" type="button">
               <span class="history-card-heading"><strong>10 июл. — 9 авг. 2026 г.</strong><span class="current-badge">Текущий</span></span>
               <span class="history-card-metrics">
-                <span>Доход<strong>10 000 000 ₽</strong></span>
-                <span>Обязательные<strong>1 200 000 ₽</strong></span>
-                <span>Резерв / цель<strong>1 300 000 ₽</strong></span>
-                <span>Потрачено<strong>123 456,78 ₽</strong></span>
-                <span>Итоговый остаток<strong>7 376 543,22 ₽</strong></span>
+                <span>Доход<strong>10 000 000 ¥</strong></span>
+                <span>Обязательные<strong>1 200 000 ¥</strong></span>
+                <span>Резерв / цель<strong>1 300 000 ¥</strong></span>
+                <span>Потрачено<strong>123 456,78 ¥</strong></span>
+                <span>Итоговый остаток<strong>7 376 543,22 ¥</strong></span>
               </span>
             </button>`;
 

@@ -2,7 +2,8 @@ import { parseLocalDate } from './dates.js';
 
 const moneyFormatter = new Intl.NumberFormat('ru-RU', {
   style: 'currency',
-  currency: 'RUB',
+  currency: 'CNY',
+  currencyDisplay: 'narrowSymbol',
   minimumFractionDigits: 0,
   maximumFractionDigits: 2,
 });

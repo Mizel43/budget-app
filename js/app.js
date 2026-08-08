@@ -360,6 +360,10 @@ function iconButton(label, iconPath, action, danger = false) {
   return button;
 }
 
+function pawPrintMarkup() {
+  return '<svg viewBox="0 0 40 40" focusable="false"><ellipse cx="8" cy="14" rx="4" ry="5" transform="rotate(-28 8 14)"/><ellipse cx="16" cy="9" rx="4" ry="5" transform="rotate(-10 16 9)"/><ellipse cx="25" cy="9" rx="4" ry="5" transform="rotate(10 25 9)"/><ellipse cx="33" cy="14" rx="4" ry="5" transform="rotate(28 33 14)"/><path d="M9.5 28c0-5 3.5-10.5 10.5-10.5S30.5 23 30.5 28c0 4-3.4 6.5-6.5 6.5-1.6 0-2.8-.8-4-.8s-2.4.8-4 .8c-3.1 0-6.5-2.5-6.5-6.5Z"/></svg>';
+}
+
 function transactionTime(transaction) {
   const date = transaction.createdAt?.toDate?.();
   return date ? date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : 'Сегодня';
@@ -408,7 +412,7 @@ function renderTodayTransactions(transactions, date) {
 
     const paw = document.createElement('span');
     paw.className = 'transaction-paw';
-    paw.textContent = '●';
+    paw.innerHTML = pawPrintMarkup();
     paw.setAttribute('aria-hidden', 'true');
 
     const details = document.createElement('div');

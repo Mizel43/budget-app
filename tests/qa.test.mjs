@@ -29,3 +29,16 @@ test('production не содержит тяжёлых UI-зависимосте�
   assert.doesNotMatch(repository, /getStateFromUI|saveWholeState|setDoc\(/);
   assert.match(repository, /batch\.set\(ref, \{ \.\.\.item/);
 });
+
+test('production использует CNY и не содержит обозначений старой валюты', async () => {
+  const [html, presentation, fixture] = await Promise.all([
+    read('../index.html'),
+    read('../js/presentation.js'),
+    read('./fixtures/ui-qa.html'),
+  ]);
+  assert.match(presentation, /currency:\s*'CNY'/);
+  assert.match(presentation, /currencyDisplay:\s*'narrowSymbol'/);
+  const legacyCurrency = new RegExp(['\\u20bd', '\\bR' + 'UB\\b', 'руб' + 'л'].join('|'), 'i');
+  assert.doesNotMatch(`${html}\n${presentation}\n${fixture}`, legacyCurrency);
+  assert.match(html, /class="paw-badge"[\s\S]*?<ellipse[\s\S]*?<ellipse[\s\S]*?<ellipse[\s\S]*?<ellipse/);
+});

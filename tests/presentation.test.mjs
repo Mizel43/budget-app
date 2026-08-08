@@ -11,9 +11,9 @@ import {
   parseNonNegativeMoneyInput,
 } from '../js/presentation.js';
 
-test('money formatter не показывает лишние нули', () => {
-  assert.match(formatMoney(12450), /^12\s?450\s?₽$/);
-  assert.match(formatMoney(12.5), /^12[,.]5\s?₽$/);
+test('money formatter показывает юани без лишних нулей', () => {
+  assert.match(formatMoney(12450), /^12\s?450\s?¥$/);
+  assert.match(formatMoney(12.5), /^12[,.]5\s?¥$/);
 });
 
 test('быстрый ввод принимает точку, запятую и пробелы', () => {
