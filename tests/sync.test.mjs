@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { canonicalBudgetUrl, createSubscriptionSlot, resolveInitialBudgetId } from '../js/sync.js';
+import { canonicalBudgetUrl, createSubscriptionSlot, normalizeBudgetId, resolveInitialBudgetId } from '../js/sync.js';
 
 test('каноническая ссылка использует budget и удаляет legacy room', () => {
   const url = canonicalBudgetUrl('https://example.test/app/?room=old#settings', 'shared-123');
@@ -14,6 +14,14 @@ test('budget имеет приоритет, а room остаётся backward co
   assert.equal(resolveInitialBudgetId('?room=legacy', { budgetId: 'stored' }), 'legacy');
   assert.equal(resolveInitialBudgetId('', { budgetId: 'stored', legacyBudgetId: 'old-stored' }), 'stored');
   assert.equal(resolveInitialBudgetId('', { legacyBudgetId: 'old-stored' }), 'old-stored');
+});
+
+test('некорректный budget id отклоняется до обращения к Firestore', () => {
+  assert.equal(normalizeBudgetId(' shared-123 '), 'shared-123');
+  assert.equal(normalizeBudgetId('bad/id'), null);
+  assert.equal(normalizeBudgetId('..'), null);
+  assert.equal(normalizeBudgetId(`bad\nvalue`), null);
+  assert.throws(() => canonicalBudgetUrl('https://example.test/', 'bad/id'), /Некорректный/);
 });
 
 test('subscription slot не плодит listener и отключает старый при переключении', () => {

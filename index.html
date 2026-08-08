@@ -24,7 +24,7 @@
         </span>
         <span>Лапки</span>
       </a>
-      <span class="sync-status" id="status" hidden>Синхронизация…</span>
+      <span class="sync-status" id="status" role="status" aria-live="polite" hidden>Синхронизация…</span>
     </header>
 
     <section class="welcome card" id="welcome">
@@ -141,11 +141,11 @@
         <section class="two-column">
           <section class="card">
             <div class="section-heading"><h2>Доходы</h2><button class="button small" id="addIncomeButton" type="button">Добавить</button></div>
-            <div class="table-scroll"><table><thead><tr><th>Название</th><th>Дата</th><th>Сумма</th><th>Действия</th></tr></thead><tbody id="incomeItems"></tbody></table></div>
+            <div class="table-scroll"><table><caption class="sr-only">Доходы текущего периода</caption><thead><tr><th>Название</th><th>Дата</th><th>Сумма</th><th>Действия</th></tr></thead><tbody id="incomeItems"></tbody></table></div>
           </section>
           <section class="card">
             <div class="section-heading"><h2>Обязательные расходы</h2><button class="button small" id="addFixedButton" type="button">Добавить</button></div>
-            <div class="table-scroll"><table><thead><tr><th>Категория</th><th>Сумма</th><th>Действия</th></tr></thead><tbody id="fixedExpenses"></tbody></table></div>
+            <div class="table-scroll"><table><caption class="sr-only">Обязательные расходы текущего периода</caption><thead><tr><th>Категория</th><th>Сумма</th><th>Действия</th></tr></thead><tbody id="fixedExpenses"></tbody></table></div>
           </section>
         </section>
       </section>
@@ -222,10 +222,10 @@
     </div>
   </nav>
 
-  <dialog id="migrationDialog" class="dialog">
+  <dialog id="migrationDialog" class="dialog" aria-labelledby="migrationTitle">
     <form method="dialog" id="migrationForm">
       <p class="eyebrow">Найдены данные старой версии</p>
-      <h2>Перенести бюджет в V2</h2>
+      <h2 id="migrationTitle">Перенести бюджет в V2</h2>
       <p>Исходные данные будут сохранены в резервной копии. Укажите дату, которой соответствовал «День 1».</p>
       <label for="legacyStartDate">Дата начала старого периода</label>
       <input id="legacyStartDate" type="date" required>
@@ -237,7 +237,7 @@
     </form>
   </dialog>
 
-  <dialog id="editorDialog" class="dialog compact">
+  <dialog id="editorDialog" class="dialog compact" aria-labelledby="editorTitle">
     <form method="dialog" id="editorForm">
       <h2 id="editorTitle">Новая запись</h2>
       <div id="editorFields"></div>
@@ -248,10 +248,10 @@
     </form>
   </dialog>
 
-  <dialog id="nextPeriodDialog" class="dialog compact">
+  <dialog id="nextPeriodDialog" class="dialog compact" aria-labelledby="nextPeriodTitle">
     <form method="dialog" id="nextPeriodForm">
       <p class="eyebrow">Новый расчётный период</p>
-      <h2>Создать следующий период</h2>
+      <h2 id="nextPeriodTitle">Создать следующий период</h2>
       <p>Проверьте границы. Мы перенесём обязательные расходы, первый доход, резерв и целевой остаток. Ежедневные расходы не копируются.</p>
       <label for="nextPeriodStartDate">Дата начала</label>
       <input id="nextPeriodStartDate" name="startDate" type="date" required>

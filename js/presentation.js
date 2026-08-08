@@ -37,6 +37,18 @@ export function parseMoneyInput(value) {
   return Number.isFinite(amount) && amount > 0 ? amount : null;
 }
 
+export function parseNonNegativeMoneyInput(value) {
+  const normalized = String(value ?? '').trim();
+  if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) return null;
+  const amount = Number(normalized);
+  return Number.isFinite(amount) && amount >= 0 ? amount : null;
+}
+
+export function normalizeRequiredText(value) {
+  const normalized = String(value ?? '').trim();
+  return normalized || null;
+}
+
 export function formatTodayDate(dateKey) {
   return fullDateFormatter.format(parseLocalDate(dateKey));
 }

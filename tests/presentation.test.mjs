@@ -6,7 +6,9 @@ import {
   formatMoney,
   formatPeriodStatus,
   formatTodayDate,
+  normalizeRequiredText,
   parseMoneyInput,
+  parseNonNegativeMoneyInput,
 } from '../js/presentation.js';
 
 test('money formatter не показывает лишние нули', () => {
@@ -21,6 +23,15 @@ test('быстрый ввод принимает точку, запятую и �
   assert.equal(parseMoneyInput('-10'), null);
   assert.equal(parseMoneyInput('12,345'), null);
   assert.equal(parseMoneyInput('кофе'), null);
+});
+
+test('формы бюджета отклоняют пустые подписи и некорректные суммы', () => {
+  assert.equal(normalizeRequiredText('  Зарплата  '), 'Зарплата');
+  assert.equal(normalizeRequiredText('   '), null);
+  assert.equal(parseNonNegativeMoneyInput('0'), 0);
+  assert.equal(parseNonNegativeMoneyInput('1200.50'), 1200.5);
+  assert.equal(parseNonNegativeMoneyInput('-1'), null);
+  assert.equal(parseNonNegativeMoneyInput('12.345'), null);
 });
 
 test('даты Today форматируются в реальном расчётном диапазоне', () => {

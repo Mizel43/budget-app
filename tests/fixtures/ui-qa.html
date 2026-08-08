@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Лапки — UI QA fixture</title>
+  <style>
+    html, body, iframe { width: 100%; height: 100%; margin: 0; border: 0; }
+    iframe { display: block; }
+  </style>
+</head>
+<body>
+  <iframe id="fixture" title="Лапки — тестовый экран"></iframe>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const requestedView = params.get('view') || 'today';
+    const frame = document.getElementById('fixture');
+
+    fetch('../../index.html')
+      .then(response => response.text())
+      .then(source => {
+        frame.addEventListener('load', () => {
+          const doc = frame.contentDocument;
+          doc.getElementById('welcome').hidden = true;
+          doc.getElementById('startNotice').hidden = true;
+          doc.getElementById('app').hidden = false;
+          doc.getElementById('bottomNav').hidden = false;
+
+          const values = {
+            todayDate: '9 августа',
+            periodRange: '10 июл. — 9 авг.',
+            allowance: '123 456,78 ₽',
+            remainingPeriod: '9 876 543,21 ₽',
+            daysRemaining: '12',
+            budgetPeriodRange: '10 июля 2026 г. — 9 августа 2026 г.',
+            budgetPeriodDays: '31 дн.',
+            totalIncome: '10 000 000 ₽',
+            totalFixed: '1 200 000 ₽',
+            reserveSummary: '800 000 ₽',
+            targetSummary: '500 000 ₽',
+            discretionaryPool: '7 500 000 ₽',
+            periodStatus: 'Активен',
+            reserveAmount: '800 000 ₽',
+            targetEndBalance: '500 000 ₽',
+          };
+          Object.entries(values).forEach(([id, value]) => { doc.getElementById(id).textContent = value; });
+
+          doc.getElementById('todayTransactionsEmpty').hidden = true;
+          doc.getElementById('transactionCount').textContent = '2';
+          doc.getElementById('todayTransactions').innerHTML = `
+            <li class="transaction-item">
+              <span class="transaction-paw" aria-hidden="true">●</span>
+              <div class="transaction-details"><strong>12 345,67 ₽</strong><span>12:40</span></div>
+              <div class="transaction-actions">
+                <button class="icon-button" type="button" aria-label="Изменить расход">✎</button>
+                <button class="icon-button danger" type="button" aria-label="Удалить расход">×</button>
+              </div>
+            </li>`;
+
+          doc.getElementById('incomeItems').innerHTML = `
+            <tr><td>Основной доход с длинным названием</td><td>2026-07-10</td><td>10 000 000 ₽</td><td><div class="table-actions"><button class="button secondary small">Изменить</button><button class="button secondary small danger">Удалить</button></div></td></tr>`;
+          doc.getElementById('fixedExpenses').innerHTML = `
+            <tr><td>Обязательный платёж</td><td>1 200 000 ₽</td><td><div class="table-actions"><button class="button secondary small">Изменить</button><button class="button secondary small danger">Удалить</button></div></td></tr>`;
+
+          doc.getElementById('historyEmpty').hidden = true;
+          doc.getElementById('historyList').innerHTML = `
+            <button class="history-card card" type="button">
+              <span class="history-card-heading"><strong>10 июл. — 9 авг. 2026 г.</strong><span class="current-badge">Текущий</span></span>
+              <span class="history-card-metrics">
+                <span>Доход<strong>10 000 000 ₽</strong></span>
+                <span>Обязательные<strong>1 200 000 ₽</strong></span>
+                <span>Резерв / цель<strong>1 300 000 ₽</strong></span>
+                <span>Потрачено<strong>123 456,78 ₽</strong></span>
+                <span>Итоговый остаток<strong>7 376 543,22 ₽</strong></span>
+              </span>
+            </button>`;
+
+          doc.querySelectorAll('[data-view]').forEach(view => { view.hidden = view.dataset.view !== requestedView; });
+          doc.querySelectorAll('.nav-item').forEach(button => {
+            const active = button.dataset.target === requestedView;
+            button.classList.toggle('active', active);
+            if (active) button.setAttribute('aria-current', 'page');
+            else button.removeAttribute('aria-current');
+          });
+          doc.body.dataset.qaReady = 'true';
+        }, { once: true });
+
+        const appScript = '<script type="module" src="./js/app.js">' + '<' + '/script>';
+        const withoutApp = source.replace(appScript, '');
+        frame.srcdoc = withoutApp.replace('<head>', '<head><base href="../../">');
+      });
+  </script>
+</body>
+</html>

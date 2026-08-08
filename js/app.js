@@ -17,6 +17,7 @@ import {
 } from './repository.js';
 import { calculateAllowance } from './calculations.js';
 import { addDays, compareDateKeys, formatDateRange, inclusiveDayCount, todayDateKey } from './dates.js';
+import { userFacingErrorMessage } from './errors.js';
 import { legacyPayload } from './migration.js';
 import {
   countTransactionsOutsideRange,
@@ -31,9 +32,11 @@ import {
   formatMoney,
   formatPeriodStatus,
   formatTodayDate,
+  normalizeRequiredText,
   parseMoneyInput,
+  parseNonNegativeMoneyInput,
 } from './presentation.js';
-import { canonicalBudgetUrl, createSubscriptionSlot, resolveInitialBudgetId } from './sync.js';
+import { canonicalBudgetUrl, createSubscriptionSlot, normalizeBudgetId, resolveInitialBudgetId } from './sync.js';
 
 const elements = Object.fromEntries([
   'app', 'welcome', 'startNotice', 'errorNotice', 'createBudgetButton',
@@ -71,15 +74,33 @@ function randomId(length = 10) {
   return Array.from(values, value => alphabet[value % alphabet.length]).join('');
 }
 
-function showError(error) {
+function showError(error, source = 'action') {
   console.error(error);
-  elements.errorNotice.textContent = error?.message || String(error);
+  elements.errorNotice.dataset.source = source;
+  elements.errorNotice.textContent = userFacingErrorMessage(error);
   elements.errorNotice.hidden = false;
 }
 
-function clearError() {
+function clearError(source = null) {
+  if (source && elements.errorNotice.dataset.source !== source) return;
   elements.errorNotice.hidden = true;
   elements.errorNotice.textContent = '';
+  delete elements.errorNotice.dataset.source;
+}
+
+function setSyncStatus(message = '') {
+  elements.status.textContent = message;
+  elements.status.hidden = !message;
+}
+
+function settleSyncStatus() {
+  clearError('sync');
+  setSyncStatus(navigator.onLine ? '' : 'Нет сети — изменения синхронизируются позже');
+}
+
+function scrollToTop() {
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.scrollTo({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' });
 }
 
 async function copyText(value) {
@@ -119,7 +140,7 @@ function switchView(target) {
     else button.removeAttribute('aria-current');
   });
   if (location.hash !== `#${validTarget}`) history.replaceState(null, '', `${location.pathname}${location.search}#${validTarget}`);
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  scrollToTop();
 }
 
 function migrationChoice(legacyData) {
@@ -237,7 +258,13 @@ async function editIncome(state, item = null) {
     { name: 'amount', label: 'Сумма', type: 'number', inputMode: 'decimal', min: 0, step: .01, value: item?.amount ?? '' },
   ] });
   if (!values) return;
-  const data = { ...values, amount: Number(values.amount) };
+  const label = normalizeRequiredText(values.label);
+  const amount = parseNonNegativeMoneyInput(values.amount);
+  if (!label || amount == null) {
+    showError(new Error('Укажите название и корректную неотрицательную сумму дохода'));
+    return;
+  }
+  const data = { ...values, label, amount };
   try {
     if (item) await updatePeriodItem(activeBudgetId, state.period.id, 'incomeItems', item.id, data);
     else await createIncomeItem(activeBudgetId, state.period.id, data);
@@ -252,7 +279,13 @@ async function editFixedExpense(state, item = null) {
     { name: 'amount', label: 'Сумма', type: 'number', inputMode: 'decimal', min: 0, step: .01, value: item?.amount ?? '' },
   ] });
   if (!values) return;
-  const data = { ...values, amount: Number(values.amount) };
+  const category = normalizeRequiredText(values.category);
+  const amount = parseNonNegativeMoneyInput(values.amount);
+  if (!category || amount == null) {
+    showError(new Error('Укажите категорию и корректную неотрицательную сумму расхода'));
+    return;
+  }
+  const data = { ...values, category, amount };
   try {
     if (item) await updatePeriodItem(activeBudgetId, state.period.id, 'fixedExpenses', item.id, data);
     else await createFixedExpense(activeBudgetId, state.period.id, data);
@@ -267,7 +300,12 @@ async function editTransaction(state, item = null) {
     { name: 'amount', label: 'Сумма', type: 'number', inputMode: 'decimal', min: .01, step: .01, value: item?.amount ?? '' },
   ] });
   if (!values) return;
-  const data = { ...values, amount: Number(values.amount) };
+  const amount = parseMoneyInput(values.amount);
+  if (amount == null) {
+    showError(new Error('Сумма расхода должна быть больше нуля и содержать не более двух знаков после запятой'));
+    return;
+  }
+  const data = { ...values, amount };
   try {
     if (item) await updatePeriodItem(activeBudgetId, state.period.id, 'transactions', item.id, data);
     else await createTransaction(activeBudgetId, state.period.id, data);
@@ -300,8 +338,13 @@ async function editProtectedAmount(state, field, title) {
     { name: 'amount', label: 'Сумма', type: 'number', inputMode: 'decimal', min: 0, step: .01, value: state.period[field] ?? 0 },
   ] });
   if (!values) return;
+  const amount = parseNonNegativeMoneyInput(values.amount);
+  if (amount == null) {
+    showError(new Error('Сумма должна быть неотрицательной и содержать не более двух знаков после запятой'));
+    return;
+  }
   try {
-    await updatePeriod(activeBudgetId, state.period.id, { [field]: Number(values.amount) });
+    await updatePeriod(activeBudgetId, state.period.id, { [field]: amount });
   } catch (error) {
     showError(error);
   }
@@ -328,8 +371,13 @@ async function editTodayTransaction(transaction) {
     fields: [{ name: 'amount', label: 'Сумма', type: 'number', inputMode: 'decimal', min: .01, step: .01, value: transaction.amount }],
   });
   if (!values) return;
+  const amount = parseMoneyInput(values.amount);
+  if (amount == null) {
+    showError(new Error('Сумма расхода должна быть больше нуля и содержать не более двух знаков после запятой'));
+    return;
+  }
   try {
-    await updatePeriodItem(activeBudgetId, currentState.period.id, 'transactions', transaction.id, { amount: Number(values.amount) });
+    await updatePeriodItem(activeBudgetId, currentState.period.id, 'transactions', transaction.id, { amount });
   } catch (error) {
     showError(error);
   }
@@ -572,7 +620,7 @@ function renderHistory(states) {
     card.addEventListener('click', () => {
       selectedHistoryPeriodId = state.period.id;
       renderHistory(states);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      scrollToTop();
     });
     elements.historyList.append(card);
   });
@@ -654,21 +702,19 @@ function subscribe(periodId) {
   periodSubscription.switchTo(key, () => {
     currentState = null;
     return subscribeToBudget(activeBudgetId, periodId, state => {
-      elements.status.hidden = true;
+      settleSyncStatus();
       render(state);
     }, error => {
-      elements.status.textContent = 'Ошибка синхронизации';
-      elements.status.hidden = false;
-      showError(error);
+      setSyncStatus('Ошибка синхронизации');
+      showError(error, 'sync');
     });
   });
 }
 
 function subscribeHistory() {
   historySubscription.switchTo(activeBudgetId, () => subscribeToBudgetHistory(activeBudgetId, renderHistory, error => {
-    elements.status.textContent = 'Ошибка загрузки истории';
-    elements.status.hidden = false;
-    showError(error);
+    setSyncStatus('Ошибка загрузки истории');
+    showError(error, 'sync');
   }));
 }
 
@@ -680,16 +726,19 @@ function subscribeBudget() {
     subscribe(currentPeriodId);
     renderHistory(historyStates);
   }, error => {
-    elements.status.textContent = 'Ошибка синхронизации';
-    elements.status.hidden = false;
-    showError(error);
+    setSyncStatus('Ошибка синхронизации');
+    showError(error, 'sync');
   }));
 }
 
 async function connect(rawId, createNew = false) {
   clearError();
-  const requestedId = rawId.trim();
-  if (!createNew && !requestedId) return;
+  const requestedId = normalizeBudgetId(rawId);
+  if (!createNew && !String(rawId ?? '').trim()) return;
+  if (!createNew && !requestedId) {
+    showError(new Error('Ссылка содержит некорректный идентификатор бюджета'));
+    return;
+  }
   const budgetId = requestedId || randomId();
   elements.createBudgetButton.disabled = true;
   const oldCreateLabel = elements.createBudgetButton.textContent;
@@ -723,7 +772,7 @@ async function connect(rawId, createNew = false) {
     elements.welcome.hidden = true;
     elements.startNotice.hidden = true;
     elements.bottomNav.hidden = false;
-    elements.status.hidden = true;
+    settleSyncStatus();
     subscribe(currentPeriodId);
     subscribeHistory();
     subscribeBudget();
@@ -738,6 +787,11 @@ async function connect(rawId, createNew = false) {
 
 document.querySelectorAll('.nav-item').forEach(button => button.addEventListener('click', () => switchView(button.dataset.target)));
 window.addEventListener('hashchange', () => activeBudgetId && switchView(location.hash.slice(1)));
+window.addEventListener('offline', () => setSyncStatus('Нет сети — изменения синхронизируются позже'));
+window.addEventListener('online', () => {
+  setSyncStatus('Сеть восстановлена');
+  window.setTimeout(() => navigator.onLine && setSyncStatus(''), 2500);
+});
 
 elements.createBudgetButton.addEventListener('click', () => connect('', true));
 
