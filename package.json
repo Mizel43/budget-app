@@ -1,0 +1,9 @@
+{
+  "name": "budget-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check js/app.js && node --check js/repository.js"
+  }
+}

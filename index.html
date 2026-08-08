@@ -1,686 +1,131 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Управление месячным бюджетом — синхронно</title>
-<style>
-  /* ====== Базовые цветовые токены (твой набор) ====== */
-:root {
-  --color-white: rgba(255, 255, 255, 1);
-  --color-black: rgba(0, 0, 0, 1);
-  --color-cream-50: rgba(252, 252, 249, 1);
-  --color-cream-100: rgba(255, 255, 253, 1);
-  --color-gray-200: rgba(245, 245, 245, 1);
-  --color-gray-300: rgba(167, 169, 169, 1);
-  --color-gray-400: rgba(119, 124, 124, 1);
-  --color-slate-500: rgba(98, 108, 113, 1);
-  --color-brown-600: rgba(94, 82, 64, 1);
-  --color-charcoal-700: rgba(31, 33, 33, 1);
-  --color-charcoal-800: rgba(38, 40, 40, 1);
-  --color-slate-900: rgba(19, 52, 59, 1);
-  --color-teal-500: rgba(33, 128, 141, 1);
-  --color-teal-600: rgba(29, 116, 128, 1);
-  --color-teal-700: rgba(26, 104, 115, 1);
-  --color-red-500: rgba(192, 21, 47, 1);
-  --color-orange-500: rgba(168, 75, 47, 1);
-
-  --color-background: var(--color-cream-50);
-  --color-surface: var(--color-cream-100);
-  --color-text: var(--color-slate-900);
-  --color-text-secondary: var(--color-slate-500);
-  --color-primary: var(--color-teal-500);
-  --color-primary-hover: var(--color-teal-600);
-  --color-primary-active: var(--color-teal-700);
-  --color-error: var(--color-red-500);
-
-  --radius: 6px;
-  --shadow: 0 6px 18px rgba(2,6,23,.06);
-  --font-family-base: "Inter", "Segoe UI", Roboto, sans-serif;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-background: var(--color-charcoal-700);
-    --color-surface: var(--color-charcoal-800);
-    --color-text: var(--color-gray-200);
-    --color-text-secondary: var(--color-gray-400);
-    --color-primary: var(--color-teal-500);
-    --color-primary-hover: var(--color-teal-600);
-    --color-primary-active: var(--color-teal-700);
-    --color-error: var(--color-red-500);
-  }
-}
-
-/* ====== Общий стиль ====== */
-* { box-sizing: border-box; }
-body {
-  margin: 0;
-  padding: 16px;
-  background: var(--color-background);
-  color: var(--color-text);
-  font-family: var(--font-family-base);
-  line-height: 1.5;
-}
-
-.wrap { max-width: 1100px; margin: 0 auto; }
-
-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 18px;
-}
-
-h1 {
-  font-size: 22px;
-  margin: 0;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.controls {
-  margin-left: auto;
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-input, select, button {
-  font-family: inherit;
-  font-size: 14px;
-}
-
-input[type="text"], input[type="number"], select {
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid rgba(0,0,0,0.1);
-  border-radius: var(--radius);
-  background: var(--color-surface);
-  color: var(--color-text);
-}
-
-input:focus, select:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(33,128,141,0.25);
-}
-
-.btn {
-  background: var(--color-primary);
-  color: var(--color-white);
-  border: none;
-  padding: 8px 14px;
-  border-radius: var(--radius);
-  cursor: pointer;
-  transition: background .2s ease;
-}
-.btn:hover { background: var(--color-primary-hover); }
-.btn:active { background: var(--color-primary-active); }
-
-.btn.ghost {
-  background: transparent;
-  color: var(--color-text);
-  border: 1px solid rgba(0,0,0,0.1);
-}
-.btn.ghost:hover {
-  background: rgba(33,128,141,0.08);
-}
-
-.btn.danger {
-  background: var(--color-error);
-  color: var(--color-white);
-}
-.btn.danger:hover {
-  opacity: 0.9;
-}
-
-.small { font-size: 13px; padding: 6px 10px; }
-
-.card {
-  background: var(--color-surface);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 16px;
-  margin-bottom: 16px;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
-}
-
-label {
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  display: block;
-  margin-bottom: 6px;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-th, td {
-  padding: 8px;
-  text-align: left;
-  border-bottom: 1px solid rgba(0,0,0,0.05);
-}
-tfoot td {
-  font-weight: 600;
-  background: rgba(33,128,141,0.06);
-}
-
-.muted { color: var(--color-text-secondary); font-size: 13px; }
-
-.row-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 10px;
-}
-
-.days { overflow-x: auto; }
-
-.day-balance {
-  display: inline-block;
-  padding: 6px 10px;
-  border-radius: 8px;
-  font-weight: 500;
-  font-size: 13px;
-}
-.day-balance.pos {
-  background: rgba(33,128,141,0.15);
-  color: var(--color-primary);
-  border: 1px solid rgba(33,128,141,0.2);
-}
-.day-balance.neg {
-  background: rgba(192,21,47,0.15);
-  color: var(--color-error);
-  border: 1px solid rgba(192,21,47,0.25);
-}
-
-@media (max-width: 600px) {
-  body { padding: 12px; }
-  h1 { font-size: 18px; }
-  .grid { grid-template-columns: 1fr; }
-}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#fff8fb">
+  <title>Общий бюджет</title>
+  <link rel="stylesheet" href="./css/styles.css">
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>Управление месячным бюджетом</h1>
-    <div class="controls">
-      <input id="roomInput" placeholder="ID комнаты (оставь пустым — создастся)" style="padding:8px;border-radius:10px;border:1px solid #e6e6e6" />
-      <button class="btn" id="joinBtn">Создать/Подключиться</button>
-      <button class="btn ghost" id="copyLinkBtn">Копировать ссылку</button>
-      <button class="btn ghost" id="shareBtn">Share (Web Share)</button>
-    </div>
-  </header>
-
-  <div id="mainArea" style="display:none">
-    <div class="card">
-      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-        <div class="muted">Комната:</div>
-        <div id="roomId" style="font-weight:600"></div>
-        <div style="margin-left:auto" class="muted">Статус: <span id="status">offline</span></div>
+  <main class="shell">
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">Budget App V2</p>
+        <h1>Общий бюджет</h1>
       </div>
-    </div>
-
-    <div class="card">
-      <h3>Обязательные траты</h3>
-      <table id="expensesTable">
-        <thead><tr><th>Категория</th><th>Сумма (₽)</th><th></th></tr></thead>
-        <tbody id="expensesBody"></tbody>
-        <tfoot><tr><td>Итого</td><td id="totalExpenses">0</td><td></td></tr></tfoot>
-      </table>
-      <div style="margin-top:10px" class="row-actions">
-        <button class="btn small" id="addExpense">Добавить категорию</button>
-        <button class="btn ghost small danger" id="resetExpenses">Сбросить траты</button>
+      <div class="join-controls" id="joinControls">
+        <label class="sr-only" for="budgetInput">ID бюджета</label>
+        <input id="budgetInput" type="text" autocomplete="off" placeholder="ID бюджета">
+        <button class="button" id="joinButton" type="button">Открыть</button>
       </div>
-    </div>
-
-    <div class="card">
-      <h3>Месячные параметры</h3>
-      <div class="grid">
-        <div>
-          <label>Месячный доход (₽)</label>
-          <input id="monthlyIncome" type="number" value="0" />
-        </div>
-        <div>
-          <label>Дней в месяце</label>
-          <select id="daysCount"><option>28</option><option>29</option><option selected>30</option><option>31</option></select>
-        </div>
-        <div>
-          <label>Свободные средства</label>
-          <input id="freeMoney" style="width: 100%;
-    padding: 8px 10px;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    border-radius: var(--radius);
-    background: var(--color-gray-400);
-    color: var(--color-text);" readonly />
-        </div>
-        <div>
-          <label>Можно тратить в день</label>
-          <input id="dailyBudget" style="width: 100%;
-    padding: 8px 10px;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    border-radius: var(--radius);
-    background: var(--color-gray-400);
-    color: var(--color-text);" readonly />
-        </div>
-        <div>
-          <label>Маша (в день)</label>
-          <input id="mashaBudget" style="width: 100%;
-    padding: 8px 10px;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    border-radius: var(--radius);
-    background: var(--color-gray-400);
-    color: var(--color-text);" readonly />
-        </div>
-        <div>
-          <label>Илья (в день)</label>
-          <input id="ilyaBudget" style="width: 100%;
-    padding: 8px 10px;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    border-radius: var(--radius);
-    background: var(--color-gray-400);
-    color: var(--color-text);" readonly />
-        </div>
+      <div class="share-controls" id="shareControls" hidden>
+        <button class="button secondary" id="copyLinkButton" type="button">Копировать ссылку</button>
+        <button class="button secondary" id="shareButton" type="button">Поделиться</button>
       </div>
-    </div>
+    </header>
 
-    <div class="card">
-      <h3>Расходы по дням</h3>
-      <div class="days">
-        <table id="daysTable">
-          <thead><tr><th>День</th><th>Маша</th><th>Илья</th><th>Остаток</th></tr></thead>
-          <tbody id="daysTbody"></tbody>
-          <tfoot><tr><td>Итого</td><td id="totalMasha">0</td><td id="totalIlya">0</td><td id="totalBalance">0</td></tr></tfoot>
-        </table>
+    <p class="notice" id="startNotice">Введите ID существующего бюджета или оставьте поле пустым, чтобы создать новый.</p>
+    <p class="notice error" id="errorNotice" role="alert" hidden></p>
+
+    <section id="app" hidden>
+      <section class="card connection-card" aria-label="Состояние подключения">
+        <div>
+          <span class="muted">Бюджет</span>
+          <strong id="budgetId"></strong>
+        </div>
+        <span class="status" id="status">Подключение…</span>
+      </section>
+
+      <section class="card">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Текущий период</p>
+            <h2 id="periodRange">—</h2>
+          </div>
+          <span class="pill" id="periodStatus">active</span>
+        </div>
+        <div class="summary-grid">
+          <div class="summary-item"><span>Доход</span><strong id="totalIncome">0 ₽</strong></div>
+          <div class="summary-item"><span>Обязательные</span><strong id="totalFixed">0 ₽</strong></div>
+          <div class="summary-item"><span>Свободный пул</span><strong id="discretionaryPool">0 ₽</strong></div>
+          <div class="summary-item accent"><span>Лимит на сегодня</span><strong id="allowance">0 ₽</strong></div>
+        </div>
+      </section>
+
+      <section class="two-column">
+        <section class="card">
+          <div class="section-heading">
+            <h2>Доходы</h2>
+            <button class="button small" id="addIncomeButton" type="button">Добавить</button>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Название</th><th>Дата</th><th>Сумма</th><th></th></tr></thead>
+              <tbody id="incomeItems"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="section-heading">
+            <h2>Обязательные расходы</h2>
+            <button class="button small" id="addFixedButton" type="button">Добавить</button>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Категория</th><th>Сумма</th><th></th></tr></thead>
+              <tbody id="fixedExpenses"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section class="card">
+        <div class="section-heading">
+          <div>
+            <h2>Ежедневные расходы</h2>
+            <p class="muted">Каждая операция хранится отдельно и безопасно синхронизируется.</p>
+          </div>
+          <button class="button small" id="addTransactionButton" type="button">Добавить расход</button>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Дата</th><th>Сумма</th><th></th></tr></thead>
+            <tbody id="transactions"></tbody>
+          </table>
+        </div>
+        <p class="empty-state" id="transactionsEmpty">Расходов пока нет.</p>
+      </section>
+    </section>
+  </main>
+
+  <dialog id="migrationDialog" class="dialog">
+    <form method="dialog" id="migrationForm">
+      <p class="eyebrow">Найдены данные старой версии</p>
+      <h2>Перенести бюджет в V2</h2>
+      <p>Исходные данные будут сохранены в резервной копии. Укажите дату, которой соответствовал «День 1».</p>
+      <label for="legacyStartDate">Дата начала старого периода</label>
+      <input id="legacyStartDate" type="date" required>
+      <p class="migration-preview" id="migrationPreview">Выберите дату, чтобы увидеть диапазон.</p>
+      <div class="dialog-actions">
+        <button class="button secondary" id="cancelMigrationButton" type="button">Не сейчас</button>
+        <button class="button" id="confirmMigrationButton" type="submit">Создать backup и перенести</button>
       </div>
-      <div style="margin-top:10px" class="row-actions">
-        <button class="btn small" id="clearDaily">Очистить дневные</button>
-        <button class="btn danger small" id="fullReset">Полный сброс</button>
+    </form>
+  </dialog>
+
+  <dialog id="editorDialog" class="dialog compact">
+    <form method="dialog" id="editorForm">
+      <h2 id="editorTitle">Новая запись</h2>
+      <div id="editorFields"></div>
+      <div class="dialog-actions">
+        <button class="button secondary" id="cancelEditorButton" type="button">Отмена</button>
+        <button class="button" type="submit">Сохранить</button>
       </div>
-    </div>
-  </div>
+    </form>
+  </dialog>
 
-  <div id="startNote" class="muted">Подключитесь к комнате, чтобы включить синхронизацию.</div>
-</div>
-
-<!-- Firebase (modular v9) CDN -->
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, onSnapshot, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
-
-// ---- REPLACE_WITH_YOUR_FIREBASE_CONFIG ----
-const firebaseConfig = {
-  apiKey: "AIzaSyClASfNWa6TVGtA1naCW5-AwPo6FdqS2OE",
-  authDomain: "budget-app-6b928.firebaseapp.com",
-  projectId: "budget-app-6b928",
-  storageBucket: "budget-app-6b928.firebasestorage.app",
-  messagingSenderId: "185609122187",
-  appId: "1:185609122187:web:3bcbb6d5877f857b22ff8e"
-};
-// ------------------------------------------
-
-if (!firebaseConfig || !firebaseConfig.apiKey) {
-  alert('Вставьте firebaseConfig в код (см. комментарий вверху).');
-}
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-try { enableIndexedDbPersistence(db); } catch(e){ console.warn('persistence not enabled', e); }
-
-let room = null;
-let localChange = false;
-
-// --- элементы ---
-const mainArea = document.getElementById('mainArea');
-const joinBtn = document.getElementById('joinBtn');
-const roomInput = document.getElementById('roomInput');
-const roomIdEl = document.getElementById('roomId');
-const statusEl = document.getElementById('status');
-const copyLinkBtn = document.getElementById('copyLinkBtn');
-const shareBtn = document.getElementById('shareBtn');
-
-const expensesBody = document.getElementById('expensesBody');
-const totalExpensesEl = document.getElementById('totalExpenses');
-const addExpenseBtn = document.getElementById('addExpense');
-const resetExpensesBtn = document.getElementById('resetExpenses');
-
-const monthlyIncomeEl = document.getElementById('monthlyIncome');
-const daysCountEl = document.getElementById('daysCount');
-const freeMoneyEl = document.getElementById('freeMoney');
-const dailyBudgetEl = document.getElementById('dailyBudget');
-const mashaBudgetEl = document.getElementById('mashaBudget');
-const ilyaBudgetEl = document.getElementById('ilyaBudget');
-
-const daysTbody = document.getElementById('daysTbody');
-const totalMashaEl = document.getElementById('totalMasha');
-const totalIlyaEl = document.getElementById('totalIlya');
-const totalBalanceEl = document.getElementById('totalBalance');
-
-const clearDailyBtn = document.getElementById('clearDaily');
-const fullResetBtn = document.getElementById('fullReset');
-
-// ---------- МОДАЛЬНОЕ ОКНО ----------
-const modal = document.createElement('div');
-modal.innerHTML = `
-  <div id="confirmModal" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(15,23,42,.45);z-index:1000;">
-    <div style="background:#fff;border-radius:12px;max-width:320px;padding:20px;box-shadow:0 10px 40px rgba(2,6,23,.2);text-align:center;">
-      <div id="confirmText" style="margin-bottom:16px;font-size:15px;"></div>
-      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-        <button id="confirmYes" class="btn danger small">Удалить</button>
-        <button id="confirmNo" class="btn ghost small">Отмена</button>
-      </div>
-    </div>
-  </div>
-`;
-document.body.appendChild(modal);
-const confirmModal = document.getElementById('confirmModal');
-const confirmText = document.getElementById('confirmText');
-const confirmYes = document.getElementById('confirmYes');
-const confirmNo = document.getElementById('confirmNo');
-
-function showConfirm(text){
-  return new Promise((resolve)=>{
-    confirmText.textContent = text;
-    confirmModal.style.display = 'flex';
-    const close = (result)=>{
-      confirmModal.style.display = 'none';
-      confirmYes.onclick = confirmNo.onclick = null;
-      resolve(result);
-    };
-    confirmYes.onclick = ()=>close(true);
-    confirmNo.onclick = ()=>close(false);
-  });
-}
-
-// ---------- ВСПОМОГАТЕЛЬНЫЕ ----------
-function uid(len=8){return Math.random().toString(36).slice(2,2+len);}
-function escapeHtml(s){return String(s).replaceAll('"','&quot;').replaceAll('<','&lt;').replaceAll('>','&gt;');}
-
-// ---------- STATE ----------
-function getStateFromUI(){
-  const expenses = [];
-  expensesBody.querySelectorAll('tr').forEach(tr=>{
-    const cat = tr.querySelector('input[data-cat]').value.trim();
-    const amount = parseFloat(tr.querySelector('input[data-amt]').value) || 0;
-    if(cat) expenses.push({category:cat,amount});
-  });
-  const days = [];
-  const daysCount = parseInt(daysCountEl.value,10);
-  for(let i=1;i<=daysCount;i++){
-    const m = parseFloat(document.getElementById(`masha-${i}`)?.value) || 0;
-    const p = parseFloat(document.getElementById(`ilya-${i}`)?.value) || 0;
-    days.push({masha:m,ilya:p});
-  }
-  return {
-    monthlyIncome: parseFloat(monthlyIncomeEl.value)||0,
-    daysCount: parseInt(daysCountEl.value,10),
-    expenses,
-    days
-  };
-}
-
-function applyStateToUI(state){
-  if(!state) return;
-  localChange = true;
-  expensesBody.innerHTML = '';
-  (state.expenses || []).forEach(e => addExpenseRow(e.category, e.amount));
-  updateExpensesTotals();
-
-  monthlyIncomeEl.value = state.monthlyIncome || 0;
-  daysCountEl.value = state.daysCount || 30;
-  buildDaysTable(state.daysCount || 30);
-  const daysArr = state.days || [];
-  for(let i=1;i<= (state.daysCount||30); i++){
-    const mEl = document.getElementById(`masha-${i}`);
-    const pEl = document.getElementById(`ilya-${i}`);
-    const d = daysArr[i-1] || {masha:0,ilya:0};
-    if(mEl) mEl.value = d.masha ?? 0;
-    if(pEl) pEl.value = d.ilya ?? 0;
-  }
-  calculate();
-  setTimeout(()=>localChange=false,250);
-}
-
-// ---------- FIREBASE ----------
-let unsub = null;
-async function joinRoom(id){
-  if(unsub) unsub();
-  if(!id) id = uid(10);
-  room = id;
-  roomIdEl.textContent = room;
-  mainArea.style.display = 'block';
-  document.getElementById('startNote').style.display = 'none';
-  localStorage.setItem('budget_room', room);
-  const docRef = doc(db, 'budgets', room);
-  statusEl.textContent = 'connecting...';
-  const snap = await getDoc(docRef);
-  if(!snap.exists()){
-    const initState = {
-      monthlyIncome: 0,
-      daysCount: 30,
-      expenses: [
-        {category:'Квартира',amount:2700},
-        {category:'ЖКХ',amount:600},
-        {category:'Тел. связь',amount:260},
-        {category:'Свадьба',amount:1000}
-      ],
-      days: Array(30).fill({masha:0,ilya:0}),
-      updatedAt: Date.now()
-    };
-    await setDoc(docRef, initState);
-  }
-  unsub = onSnapshot(docRef, (snap)=>{
-    if(!snap.exists()) return;
-    statusEl.textContent = 'online';
-    const data = snap.data();
-    if(!localChange) applyStateToUI(data);
-  }, err=>{
-    console.error('snapshot error',err);
-    statusEl.textContent = 'error';
-  });
-  startAutoSave();
-}
-
-let saveTimer = null;
-function startAutoSave(){attachUIHandlers();}
-function scheduleSave(){
-  if(localChange) return;
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(async ()=>{
-    try{
-      const data = getStateFromUI();
-      data.updatedAt = Date.now();
-      localChange = true;
-      await setDoc(doc(db, 'budgets', room), data, {merge:true});
-      setTimeout(()=>localChange=false,200);
-    }catch(e){ console.error(e) }
-  }, 300);
-}
-
-// ---------- UI ----------
-function addExpenseRow(cat='', amt=0){
-  const tr = document.createElement('tr');
-  tr.innerHTML = `
-    <td><input data-cat type="text" value="${escapeHtml(cat)}" placeholder="Категория" class="small"></td>
-    <td><input data-amt type="number" min="0" value="${amt}" class="small"></td>
-    <td><button class="btn ghost small remove danger">Удалить</button></td>
-  `;
-  expensesBody.appendChild(tr);
-  const catInput = tr.querySelector('[data-cat]');
-  const amtInput = tr.querySelector('[data-amt]');
-  catInput.addEventListener('input', ()=>{ updateExpensesTotals(); scheduleSave(); });
-  amtInput.addEventListener('input', ()=>{ updateExpensesTotals(); scheduleSave(); });
-  tr.querySelector('.remove').addEventListener('click', async ()=>{
-    const ok = await showConfirm('Удалить эту категорию?');
-    if(ok){ tr.remove(); updateExpensesTotals(); scheduleSave(); }
-  });
-  updateExpensesTotals();
-  return tr;
-}
-
-function updateExpensesTotals(){
-  let total = 0;
-  expensesBody.querySelectorAll('input[data-amt]').forEach(i=>{
-    total += parseFloat(i.value) || 0;
-  });
-  totalExpensesEl.textContent = total.toFixed(0);
-  calculate();
-}
-
-function buildDaysTable(count=30){
-  daysTbody.innerHTML = '';
-  for(let i=1;i<=count;i++){
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td style="font-weight:600">${i}</td>
-      <td><input id="masha-${i}" type="number" min="0" step="0.01" class="small" value="0"></td>
-      <td><input id="ilya-${i}" type="number" min="0" step="0.01" class="small" value="0"></td>
-      <td><div id="balance-${i}" class="day-balance pos">0.00</div></td>
-    `;
-    daysTbody.appendChild(tr);
-
-    const m = tr.querySelector(`#masha-${i}`);
-    const p = tr.querySelector(`#ilya-${i}`);
-
-    // --- новый функционал ---
-    [m, p].forEach(input => {
-      input.addEventListener('focus', ()=>{
-        if(input.value === "0") input.value = "";
-      });
-      input.addEventListener('blur', ()=>{
-        if(input.value.trim() === "") input.value = "0";
-      });
-    });
-
-    m.addEventListener('input', ()=>{ updateDailyBalances(); scheduleSave(); });
-    p.addEventListener('input', ()=>{ updateDailyBalances(); scheduleSave(); });
-  }
-  updateDailyBalances();
-}
-
-function calculate(){
-  const totalExpenses = parseFloat(totalExpensesEl.textContent) || 0;
-  const monthlyIncome = parseFloat(monthlyIncomeEl.value) || 0;
-  const free = monthlyIncome - totalExpenses;
-  freeMoneyEl.value = free.toFixed(0);
-  const daysCount = parseInt(daysCountEl.value,10) || 30;
-  const dailyBudget = (free/daysCount) || 0;
-  dailyBudgetEl.value = dailyBudget.toFixed(2);
-  mashaBudgetEl.value = (dailyBudget/2).toFixed(2);
-  ilyaBudgetEl.value = (dailyBudget/2).toFixed(2);
-  updateDailyBalances();
-}
-
-function updateDailyBalances(){
-  const dailyBudget = parseFloat(dailyBudgetEl.value) || 0;
-  const daysCount = parseInt(daysCountEl.value,10) || 30;
-  const free = parseFloat(freeMoneyEl.value) || 0;
-  let totalMasha=0,totalIlya=0;
-  for(let i=1;i<=daysCount;i++){
-    const m = parseFloat(document.getElementById(`masha-${i}`)?.value) || 0;
-    const p = parseFloat(document.getElementById(`ilya-${i}`)?.value) || 0;
-    const bal = dailyBudget - (m+p);
-    const div = document.getElementById(`balance-${i}`);
-    if(div){
-      div.textContent = bal.toFixed(2);
-      div.className = 'day-balance ' + (bal>=0 ? 'pos' : 'neg');
-    }
-    totalMasha += m; totalIlya += p;
-  }
-  const totalBal = free - (totalMasha + totalIlya);
-  totalMashaEl.textContent = totalMasha.toFixed(2);
-  totalIlyaEl.textContent = totalIlya.toFixed(2);
-  totalBalanceEl.textContent = totalBal.toFixed(2);
-}
-
-function attachUIHandlers(){
-  if(attachUIHandlers.attached) return;
-  attachUIHandlers.attached = true;
-
-  addExpenseBtn.addEventListener('click', ()=>{ addExpenseRow('Новая',0); scheduleSave(); });
-
-  resetExpensesBtn.addEventListener('click', async ()=>{
-    const ok = await showConfirm('Удалить все обязательные траты?');
-    if(ok){ expensesBody.innerHTML=''; updateExpensesTotals(); scheduleSave(); }
-  });
-
-  monthlyIncomeEl.addEventListener('input', ()=>{ calculate(); scheduleSave(); });
-  daysCountEl.addEventListener('change', ()=>{ buildDaysTable(parseInt(daysCountEl.value,10)); scheduleSave(); });
-
-  clearDailyBtn.addEventListener('click', async ()=>{
-    const ok = await showConfirm('Очистить все дневные расходы?');
-    if(ok){
-      const cnt = parseInt(daysCountEl.value,10);
-      for(let i=1;i<=cnt;i++){
-        const m=document.getElementById(`masha-${i}`);
-        const p=document.getElementById(`ilya-${i}`);
-        if(m) m.value=0; if(p) p.value=0;
-      }
-      updateDailyBalances(); scheduleSave();
-    }
-  });
-
-  fullResetBtn.addEventListener('click', async ()=>{
-    const ok = await showConfirm('Полный сброс всех данных комнаты?');
-    if(ok){
-      expensesBody.innerHTML=''; monthlyIncomeEl.value=0; daysCountEl.value=30;
-      buildDaysTable(30); calculate(); scheduleSave();
-    }
-  });
-}
-
-// ---------- ОСНОВНОЙ ПОТОК ----------
-joinBtn.addEventListener('click', async ()=>{
-  let id = roomInput.value.trim();
-  if(!id) id = uid(10);
-  try{
-    await signInAnonymously(auth);
-    joinBtn.disabled = true; joinBtn.textContent = 'Подключаюсь...';
-    await joinRoom(id);
-    joinBtn.style.display = 'none';
-    roomInput.style.display = 'none';
-    copyLinkBtn.style.display = 'inline-block';
-    shareBtn.style.display = 'inline-block';
-    joinBtn.disabled = false; joinBtn.textContent = 'Создать/Подключиться';
-  }catch(e){ console.error(e); alert('Ошибка подключения: '+e.message); joinBtn.disabled=false; joinBtn.textContent='Создать/Подключиться'; }
-});
-
-copyLinkBtn.addEventListener('click', ()=>{
-  const url = new URL(location.href);
-  url.searchParams.set('room', room);
-  navigator.clipboard.writeText(url.toString());
-  copyLinkBtn.textContent = 'Скопировано';
-  setTimeout(()=>copyLinkBtn.textContent='Копировать ссылку',1500);
-});
-
-shareBtn.addEventListener('click', async ()=>{
-  if(navigator.share){
-    const url = new URL(location.href); url.searchParams.set('room', room);
-    try{ await navigator.share({title:'Бюджет — комната '+room, text:'Откройте для синхронизации', url: url.toString() }); }
-    catch(e){ console.warn(e); }
-  } else {
-    alert('Web Share не доступен в этом браузере.');
-  }
-});
-
-(async function autoJoin(){
-  const params = new URLSearchParams(location.search);
-  const r = params.get('room') || localStorage.getItem('budget_room') || '';
-  if(r){ roomInput.value = r; joinBtn.click(); }
-})();
-
-onAuthStateChanged(auth, user=>{ if(user){ /* ok */ } });
-</script>
+  <script type="module" src="./js/app.js"></script>
 </body>
 </html>
