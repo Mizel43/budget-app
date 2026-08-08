@@ -4,7 +4,6 @@ import {
   getDoc,
   onSnapshot,
   serverTimestamp,
-  setDoc,
   writeBatch,
 } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
 import { db } from './firebase.js';
@@ -98,6 +97,55 @@ export function subscribeToBudget(budgetId, periodId, onChange, onError) {
   return () => unsubscribers.forEach(unsubscribe => unsubscribe());
 }
 
+export function subscribeToBudgetHistory(budgetId, onChange, onError) {
+  const entries = new Map();
+  const emit = () => onChange([...entries.values()]
+    .map(({ unsubscribers, ...state }) => ({ ...state }))
+    .sort((left, right) => right.period.startDate.localeCompare(left.period.startDate)));
+
+  const unsubscribePeriods = onSnapshot(collection(db, 'budgets', budgetId, 'periods'), snapshot => {
+    const liveIds = new Set(snapshot.docs.map(item => item.id));
+    entries.forEach((entry, id) => {
+      if (liveIds.has(id)) return;
+      entry.unsubscribers.forEach(unsubscribe => unsubscribe());
+      entries.delete(id);
+    });
+
+    snapshot.docs.forEach(periodSnapshot => {
+      const id = periodSnapshot.id;
+      let entry = entries.get(id);
+      if (!entry) {
+        entry = {
+          period: { id, ...periodSnapshot.data() },
+          incomeItems: [],
+          fixedExpenses: [],
+          transactions: [],
+          unsubscribers: [],
+        };
+        entries.set(id, entry);
+        const subscribeItems = (name, target) => onSnapshot(periodCollection(budgetId, id, name), itemsSnapshot => {
+          entry[target] = itemsSnapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+          emit();
+        }, onError);
+        entry.unsubscribers.push(
+          subscribeItems('incomeItems', 'incomeItems'),
+          subscribeItems('fixedExpenses', 'fixedExpenses'),
+          subscribeItems('transactions', 'transactions'),
+        );
+      } else {
+        entry.period = { id, ...periodSnapshot.data() };
+      }
+    });
+    emit();
+  }, onError);
+
+  return () => {
+    unsubscribePeriods();
+    entries.forEach(entry => entry.unsubscribers.forEach(unsubscribe => unsubscribe()));
+    entries.clear();
+  };
+}
+
 async function createItem(budgetId, periodId, collectionName, item) {
   const ref = doc(periodCollection(budgetId, periodId, collectionName));
   const timestamp = serverTimestamp();
@@ -111,6 +159,57 @@ async function createItem(budgetId, periodId, collectionName, item) {
 export const createIncomeItem = (budgetId, periodId, item) => createItem(budgetId, periodId, 'incomeItems', item);
 export const createFixedExpense = (budgetId, periodId, item) => createItem(budgetId, periodId, 'fixedExpenses', item);
 export const createTransaction = (budgetId, periodId, item) => createItem(budgetId, periodId, 'transactions', item);
+
+export async function updatePeriod(budgetId, periodId, changes) {
+  const timestamp = serverTimestamp();
+  const batch = writeBatch(db);
+  batch.set(periodRef(budgetId, periodId), { ...changes, updatedAt: timestamp }, { merge: true });
+  batch.set(budgetRef(budgetId), { updatedAt: timestamp }, { merge: true });
+  await batch.commit();
+}
+
+export async function createNextPeriod(budgetId, sourceState, dates) {
+  const next = doc(collection(db, 'budgets', budgetId, 'periods'));
+  const timestamp = serverTimestamp();
+  const batch = writeBatch(db);
+  const { period, incomeItems = [], fixedExpenses = [] } = sourceState;
+  batch.set(next, {
+    startDate: dates.startDate,
+    endDate: dates.endDate,
+    status: 'active',
+    reserveAmount: Number(period.reserveAmount) || 0,
+    targetEndBalance: Number(period.targetEndBalance) || 0,
+    copiedFromPeriodId: period.id,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+
+  const primaryIncome = [...incomeItems].sort((left, right) =>
+    (left.date ?? '').localeCompare(right.date ?? '') || left.id.localeCompare(right.id)
+  )[0];
+  if (primaryIncome) {
+    const incomeRef = doc(periodCollection(budgetId, next.id, 'incomeItems'));
+    batch.set(incomeRef, {
+      label: primaryIncome.label,
+      amount: Number(primaryIncome.amount) || 0,
+      date: dates.startDate,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+  }
+  fixedExpenses.forEach(expense => {
+    const expenseRef = doc(periodCollection(budgetId, next.id, 'fixedExpenses'));
+    batch.set(expenseRef, {
+      category: expense.category,
+      amount: Number(expense.amount) || 0,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+  });
+  batch.set(budgetRef(budgetId), { currentPeriodId: next.id, updatedAt: timestamp }, { merge: true });
+  await batch.commit();
+  return next.id;
+}
 
 export async function updatePeriodItem(budgetId, periodId, collectionName, itemId, changes) {
   const timestamp = serverTimestamp();

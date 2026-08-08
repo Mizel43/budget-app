@@ -17,6 +17,12 @@ const compactDateFormatter = new Intl.DateTimeFormat('ru-RU', {
   month: 'short',
 });
 
+const compactDateWithYearFormatter = new Intl.DateTimeFormat('ru-RU', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+});
+
 export function formatMoney(value) {
   return moneyFormatter.format(Number(value) || 0);
 }
@@ -37,6 +43,17 @@ export function formatTodayDate(dateKey) {
 
 export function formatCompactDateRange(startDate, endDate) {
   return `${compactDateFormatter.format(parseLocalDate(startDate))} — ${compactDateFormatter.format(parseLocalDate(endDate))}`;
+}
+
+export function formatHistoryDateRange(startDate, endDate) {
+  const start = parseLocalDate(startDate);
+  const end = parseLocalDate(endDate);
+  const startFormatter = start.getFullYear() === end.getFullYear() ? compactDateFormatter : compactDateWithYearFormatter;
+  return `${startFormatter.format(start)} — ${compactDateWithYearFormatter.format(end)}`;
+}
+
+export function formatHistoryDate(dateKey) {
+  return compactDateWithYearFormatter.format(parseLocalDate(dateKey));
 }
 
 export function formatPeriodStatus(status) {

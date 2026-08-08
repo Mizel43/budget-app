@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   formatCompactDateRange,
+  formatHistoryDateRange,
   formatMoney,
   formatPeriodStatus,
   formatTodayDate,
@@ -25,6 +26,11 @@ test('быстрый ввод принимает точку, запятую и �
 test('даты Today форматируются в реальном расчётном диапазоне', () => {
   assert.match(formatTodayDate('2026-08-09'), /^9 августа$/i);
   assert.match(formatCompactDateRange('2026-07-10', '2026-08-09'), /^10 июл.* — 9 авг.*$/i);
+});
+
+test('history range явно показывает переход через год', () => {
+  assert.match(formatHistoryDateRange('2026-12-10', '2027-01-09'), /^10 дек.*2026.* — 9 янв.*2027/i);
+  assert.match(formatHistoryDateRange('2026-07-10', '2026-08-09'), /^10 июл.* — 9 авг.*2026/i);
 });
 
 test('статусы периода имеют понятные русские подписи', () => {

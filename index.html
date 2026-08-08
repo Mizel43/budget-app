@@ -119,32 +119,76 @@
         <div class="view-heading">
           <p class="eyebrow">Текущий период</p>
           <h1>Бюджет</h1>
-          <p id="budgetPeriodRange">—</p>
+          <p><span id="budgetPeriodRange">—</span> · <span id="budgetPeriodDays">—</span></p>
+          <div class="heading-actions">
+            <button class="button secondary small" id="editPeriodButton" type="button">Изменить даты</button>
+            <button class="button small" id="nextPeriodButton" type="button">Создать следующий период</button>
+          </div>
         </div>
         <section class="summary-grid" aria-label="Сводка бюджета">
           <div class="summary-item"><span>Доход</span><strong id="totalIncome">0 ₽</strong></div>
           <div class="summary-item"><span>Обязательные</span><strong id="totalFixed">0 ₽</strong></div>
-          <div class="summary-item"><span>Свободный пул</span><strong id="discretionaryPool">0 ₽</strong></div>
+          <div class="summary-item"><span>Резерв</span><strong id="reserveSummary">0 ₽</strong></div>
+          <div class="summary-item"><span>Целевой остаток</span><strong id="targetSummary">0 ₽</strong></div>
+          <div class="summary-item"><span>На повседневные расходы</span><strong id="discretionaryPool">0 ₽</strong></div>
           <div class="summary-item"><span>Статус периода</span><strong id="periodStatus">—</strong></div>
+        </section>
+        <section class="budget-controls card">
+          <div class="editable-total">
+            <div><span>Резерв</span><strong id="reserveAmount">0 ₽</strong></div>
+            <button class="button secondary small" id="editReserveButton" type="button">Изменить</button>
+          </div>
+          <div class="editable-total">
+            <div><span>Целевой остаток</span><strong id="targetEndBalance">0 ₽</strong></div>
+            <button class="button secondary small" id="editTargetButton" type="button">Изменить</button>
+          </div>
         </section>
         <section class="two-column">
           <section class="card">
             <div class="section-heading"><h2>Доходы</h2><button class="button small" id="addIncomeButton" type="button">Добавить</button></div>
-            <div class="table-scroll"><table><thead><tr><th>Название</th><th>Дата</th><th>Сумма</th><th></th></tr></thead><tbody id="incomeItems"></tbody></table></div>
+            <div class="table-scroll"><table><thead><tr><th>Название</th><th>Дата</th><th>Сумма</th><th>Действия</th></tr></thead><tbody id="incomeItems"></tbody></table></div>
           </section>
           <section class="card">
             <div class="section-heading"><h2>Обязательные расходы</h2><button class="button small" id="addFixedButton" type="button">Добавить</button></div>
-            <div class="table-scroll"><table><thead><tr><th>Категория</th><th>Сумма</th><th></th></tr></thead><tbody id="fixedExpenses"></tbody></table></div>
+            <div class="table-scroll"><table><thead><tr><th>Категория</th><th>Сумма</th><th>Действия</th></tr></thead><tbody id="fixedExpenses"></tbody></table></div>
           </section>
         </section>
       </section>
 
       <section class="view" id="historyView" data-view="history" hidden aria-labelledby="historyNavLabel">
         <div class="view-heading"><p class="eyebrow">Архив периодов</p><h1>История</h1></div>
-        <section class="card placeholder-card">
+        <section class="history-list" id="historyList" aria-live="polite"></section>
+        <section class="card placeholder-card" id="historyEmpty" hidden>
           <span class="placeholder-icon" aria-hidden="true">🐾</span>
-          <h2>История появится здесь</h2>
-          <p>Завершённые расчётные периоды будут доступны в этом разделе.</p>
+          <h2>Периодов пока нет</h2>
+          <p>Созданные расчётные периоды появятся в этом разделе.</p>
+        </section>
+        <section class="history-detail" id="historyDetail" hidden>
+          <button class="button secondary small history-back" id="closeHistoryDetailButton" type="button">← Ко всем периодам</button>
+          <section class="card history-detail-card">
+            <div class="section-heading">
+              <div><p class="eyebrow">Детали периода</p><h2 id="historyDetailRange">—</h2><p class="muted" id="historyDetailDays">—</p></div>
+              <button class="button secondary small" id="editHistoryPeriodButton" type="button">Изменить даты</button>
+            </div>
+            <div class="history-summary" id="historyDetailSummary"></div>
+            <div class="heading-actions history-protected-actions">
+              <button class="button secondary small" id="editHistoryReserveButton" type="button">Изменить резерв</button>
+              <button class="button secondary small" id="editHistoryTargetButton" type="button">Изменить целевой остаток</button>
+            </div>
+          </section>
+          <section class="card">
+            <div class="section-heading"><h2>Доходы</h2><button class="button small" id="addHistoryIncomeButton" type="button">Добавить</button></div>
+            <div class="record-list" id="historyIncomeItems"></div>
+          </section>
+          <section class="card">
+            <div class="section-heading"><h2>Обязательные расходы</h2><button class="button small" id="addHistoryFixedButton" type="button">Добавить</button></div>
+            <div class="record-list" id="historyFixedExpenses"></div>
+          </section>
+          <section class="card">
+            <div class="section-heading"><h2>Расходы по реальным датам</h2><div class="heading-actions compact"><span class="transaction-count" id="historyTransactionCount">0</span><button class="button small" id="addHistoryTransactionButton" type="button">Добавить</button></div></div>
+            <div class="history-days" id="historyDays"></div>
+            <p class="empty-state" id="historyDaysEmpty">В этом периоде нет ежедневных расходов.</p>
+          </section>
         </section>
       </section>
 
@@ -205,6 +249,23 @@
       <div class="dialog-actions">
         <button class="button secondary" id="cancelEditorButton" type="button">Отмена</button>
         <button class="button" type="submit">Сохранить</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="nextPeriodDialog" class="dialog compact">
+    <form method="dialog" id="nextPeriodForm">
+      <p class="eyebrow">Новый расчётный период</p>
+      <h2>Создать следующий период</h2>
+      <p>Проверьте границы. Мы перенесём обязательные расходы, первый доход, резерв и целевой остаток. Ежедневные расходы не копируются.</p>
+      <label for="nextPeriodStartDate">Дата начала</label>
+      <input id="nextPeriodStartDate" name="startDate" type="date" required>
+      <label for="nextPeriodEndDate">Дата окончания</label>
+      <input id="nextPeriodEndDate" name="endDate" type="date" required>
+      <p class="migration-preview" id="nextPeriodPreview">—</p>
+      <div class="dialog-actions">
+        <button class="button secondary" id="cancelNextPeriodButton" type="button">Отмена</button>
+        <button class="button" id="confirmNextPeriodButton" type="submit">Создать и сделать текущим</button>
       </div>
     </form>
   </dialog>

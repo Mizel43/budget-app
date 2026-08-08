@@ -146,6 +146,22 @@ test('оставшийся discretionary учитывает все ежедне�
   assert.equal(result.remainingDiscretionary, 240);
 });
 
+test('записи за изменёнными границами сохраняются, но не входят в расчёт', () => {
+  const result = calculateAllowance({
+    period,
+    incomeItems,
+    transactions: [
+      { date: '2026-07-09', amount: 900 },
+      { date: '2026-07-10', amount: 30 },
+      { date: '2026-07-13', amount: 800 },
+    ],
+    date: '2026-07-11',
+  });
+  assert.equal(result.totalDailyTransactions, 30);
+  assert.equal(result.spentBeforeDate, 30);
+  assert.equal(result.remainingDiscretionary, 270);
+});
+
 test('эталонные economy и overspend rollover для периода 60000 / 30', () => {
   const thirtyDays = { startDate: '2026-07-10', endDate: '2026-08-08', reserveAmount: 0, targetEndBalance: 0 };
   const incomes = [{ label: 'Доход', date: '2026-07-10', amount: 60000 }];

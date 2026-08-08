@@ -68,7 +68,10 @@ export function calculateAllowance({
   const income = totalIncome(effectiveIncomeItems);
   const fixed = totalFixed(fixedExpenses);
   const pool = discretionaryPool(effectiveIncomeItems, fixedExpenses, period.reserveAmount, period.targetEndBalance);
-  const transactionTotal = totalDailyTransactions(transactions);
+  const periodTransactions = transactions.filter(item =>
+    compareDateKeys(item.date, period.startDate) >= 0 && compareDateKeys(item.date, period.endDate) <= 0
+  );
+  const transactionTotal = totalDailyTransactions(periodTransactions);
   const remainingDiscretionary = pool - transactionTotal;
 
   if (status !== 'active') {
@@ -88,10 +91,10 @@ export function calculateAllowance({
     };
   }
 
-  const before = spendBeforeDate(transactions, date);
+  const before = spendBeforeDate(periodTransactions, date);
   const daysRemaining = inclusiveDayCount(date, period.endDate);
   const dayStartAllowance = (pool - before) / daysRemaining;
-  const spentToday = spendOnDate(transactions, date);
+  const spentToday = spendOnDate(periodTransactions, date);
   const availableNowRaw = dayStartAllowance - spentToday;
   return {
     status,
