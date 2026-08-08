@@ -4,6 +4,6 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "check": "node --check js/app.js && node --check js/repository.js"
+    "check": "node --check js/app.js && node --check js/repository.js && node --check js/sync.js"
   }
 }

@@ -23,6 +23,13 @@ export async function inspectBudget(budgetId) {
   return { kind: 'unsupported', data };
 }
 
+export function subscribeToBudgetMetadata(budgetId, onChange, onError) {
+  return onSnapshot(budgetRef(budgetId), snapshot => {
+    if (!snapshot.exists()) return onError(new Error('Бюджет больше не существует'));
+    onChange({ id: snapshot.id, ...snapshot.data() });
+  }, onError);
+}
+
 export async function createBudget(budgetId, startDate = todayDateKey()) {
   const existing = await getDoc(budgetRef(budgetId));
   if (existing.exists()) return false;
@@ -79,15 +86,23 @@ export async function migrateLegacyBudget(budgetId, startDate) {
 
 export function subscribeToBudget(budgetId, periodId, onChange, onError) {
   const state = { period: null, incomeItems: [], fixedExpenses: [], transactions: [] };
-  const emit = () => state.period && onChange({ ...state });
+  const ready = new Set();
+  const emit = () => ready.size === 4 && onChange({
+    period: state.period,
+    incomeItems: [...state.incomeItems],
+    fixedExpenses: [...state.fixedExpenses],
+    transactions: [...state.transactions],
+  });
   const subscribeCollection = (name, target) => onSnapshot(periodCollection(budgetId, periodId, name), snapshot => {
     state[target] = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+    ready.add(target);
     emit();
   }, onError);
   const unsubscribers = [
     onSnapshot(periodRef(budgetId, periodId), snapshot => {
       if (!snapshot.exists()) return onError(new Error('Текущий период не найден'));
       state.period = { id: snapshot.id, ...snapshot.data() };
+      ready.add('period');
       emit();
     }, onError),
     subscribeCollection('incomeItems', 'incomeItems'),
@@ -214,10 +229,10 @@ export async function createNextPeriod(budgetId, sourceState, dates) {
 export async function updatePeriodItem(budgetId, periodId, collectionName, itemId, changes) {
   const timestamp = serverTimestamp();
   const batch = writeBatch(db);
-  batch.set(doc(periodCollection(budgetId, periodId, collectionName), itemId), {
+  batch.update(doc(periodCollection(budgetId, periodId, collectionName), itemId), {
     ...changes,
     updatedAt: timestamp,
-  }, { merge: true });
+  });
   batch.set(budgetRef(budgetId), { updatedAt: timestamp }, { merge: true });
   await batch.commit();
 }

@@ -33,13 +33,8 @@
         <h1>Сколько можно потратить сегодня?</h1>
         <p>Создайте новый бюджет или откройте общий по ссылке — дальше «Лапки» посчитают безопасную сумму на день.</p>
       </div>
-      <div class="welcome-actions" id="joinControls">
-        <label for="budgetInput">ID существующего бюджета</label>
-        <div class="join-row">
-          <input id="budgetInput" type="text" autocomplete="off" placeholder="Например, m4p8k2…">
-          <button class="button secondary" id="joinButton" type="button">Открыть</button>
-        </div>
-        <span class="choice-divider">или</span>
+      <div class="welcome-actions">
+        <p class="muted">Получили ссылку на общий бюджет? Просто откройте её — подключение произойдёт автоматически.</p>
         <button class="button button-wide" id="createBudgetButton" type="button">Создать новый бюджет</button>
       </div>
     </section>
@@ -195,7 +190,7 @@
       <section class="view" id="settingsView" data-view="settings" hidden aria-labelledby="settingsNavLabel">
         <div class="view-heading"><p class="eyebrow">Общий доступ</p><h1>Настройки</h1></div>
         <section class="card settings-card">
-          <div><span class="muted">ID бюджета</span><strong id="budgetId"></strong></div>
+          <div><span class="muted">Совместный бюджет</span><h2>Доступ к бюджету</h2></div>
           <p>Отправьте ссылку человеку, с которым ведёте общий бюджет.</p>
           <div class="share-controls" id="shareControls">
             <button class="button" id="copyLinkButton" type="button">Копировать ссылку</button>

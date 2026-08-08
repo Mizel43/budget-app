@@ -1,6 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
 import { getAuth } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
-import { enableIndexedDbPersistence, getFirestore } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
+import { enableMultiTabIndexedDbPersistence, getFirestore } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyClASfNWa6TVGtA1naCW5-AwPo6FdqS2OE',
@@ -15,7 +15,7 @@ const firebaseApp = initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
 export const db = getFirestore(firebaseApp);
 
-enableIndexedDbPersistence(db).catch(error => {
+enableMultiTabIndexedDbPersistence(db).catch(error => {
   if (error.code !== 'failed-precondition' && error.code !== 'unimplemented') {
     console.warn('Offline persistence недоступна:', error);
   }

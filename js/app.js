@@ -10,6 +10,7 @@ import {
   migrateLegacyBudget,
   removePeriodItem,
   subscribeToBudgetHistory,
+  subscribeToBudgetMetadata,
   subscribeToBudget,
   updatePeriod,
   updatePeriodItem,
@@ -32,10 +33,11 @@ import {
   formatTodayDate,
   parseMoneyInput,
 } from './presentation.js';
+import { canonicalBudgetUrl, createSubscriptionSlot, resolveInitialBudgetId } from './sync.js';
 
 const elements = Object.fromEntries([
-  'app', 'welcome', 'startNotice', 'errorNotice', 'budgetInput', 'joinButton', 'createBudgetButton',
-  'copyLinkButton', 'shareButton', 'budgetId', 'status', 'bottomNav', 'todayDate', 'periodRange',
+  'app', 'welcome', 'startNotice', 'errorNotice', 'createBudgetButton',
+  'copyLinkButton', 'shareButton', 'status', 'bottomNav', 'todayDate', 'periodRange',
   'budgetPeriodRange', 'budgetPeriodDays', 'periodStatus', 'totalIncome', 'totalFixed', 'reserveSummary',
   'targetSummary', 'discretionaryPool', 'reserveAmount', 'targetEndBalance', 'allowance',
   'remainingPeriod', 'daysRemaining', 'activePeriodContent', 'periodState', 'periodStateLabel',
@@ -59,8 +61,9 @@ let currentPeriodId = null;
 let currentState = null;
 let historyStates = [];
 let selectedHistoryPeriodId = null;
-let unsubscribe = null;
-let unsubscribeHistory = null;
+const budgetSubscription = createSubscriptionSlot();
+const periodSubscription = createSubscriptionSlot();
+const historySubscription = createSubscriptionSlot();
 
 function randomId(length = 10) {
   const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
@@ -79,17 +82,27 @@ function clearError() {
   elements.errorNotice.textContent = '';
 }
 
-function canonicalUrl(budgetId) {
-  const url = new URL(location.href);
-  url.searchParams.delete('room');
-  url.searchParams.set('budget', budgetId);
-  return url;
+async function copyText(value) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = value;
+  textarea.setAttribute('readonly', '');
+  textarea.className = 'clipboard-fallback';
+  document.body.append(textarea);
+  textarea.select();
+  const copied = document.execCommand('copy');
+  textarea.remove();
+  if (!copied) throw new Error('Не удалось скопировать ссылку');
 }
 
 function rememberBudget(budgetId) {
   localStorage.setItem('budget_id', budgetId);
   localStorage.removeItem('budget_room');
-  history.replaceState(null, '', canonicalUrl(budgetId));
+  history.replaceState(null, '', canonicalBudgetUrl(location.href, budgetId));
 }
 
 function switchView(target) {
@@ -637,40 +650,50 @@ function render(state) {
 }
 
 function subscribe(periodId) {
-  unsubscribe?.();
-  currentState = null;
-  unsubscribe = subscribeToBudget(activeBudgetId, periodId, render, error => {
-    elements.status.textContent = 'Ошибка синхронизации';
-    elements.status.hidden = false;
-    showError(error);
+  const key = `${activeBudgetId}/${periodId}`;
+  periodSubscription.switchTo(key, () => {
+    currentState = null;
+    return subscribeToBudget(activeBudgetId, periodId, state => {
+      elements.status.hidden = true;
+      render(state);
+    }, error => {
+      elements.status.textContent = 'Ошибка синхронизации';
+      elements.status.hidden = false;
+      showError(error);
+    });
   });
 }
 
 function subscribeHistory() {
-  unsubscribeHistory?.();
-  unsubscribeHistory = subscribeToBudgetHistory(activeBudgetId, renderHistory, error => {
+  historySubscription.switchTo(activeBudgetId, () => subscribeToBudgetHistory(activeBudgetId, renderHistory, error => {
     elements.status.textContent = 'Ошибка загрузки истории';
     elements.status.hidden = false;
     showError(error);
-  });
+  }));
+}
+
+function subscribeBudget() {
+  budgetSubscription.switchTo(activeBudgetId, () => subscribeToBudgetMetadata(activeBudgetId, budget => {
+    if (!budget.currentPeriodId || budget.currentPeriodId === currentPeriodId) return;
+    currentPeriodId = budget.currentPeriodId;
+    selectedHistoryPeriodId = null;
+    subscribe(currentPeriodId);
+    renderHistory(historyStates);
+  }, error => {
+    elements.status.textContent = 'Ошибка синхронизации';
+    elements.status.hidden = false;
+    showError(error);
+  }));
 }
 
 async function connect(rawId, createNew = false) {
   clearError();
   const requestedId = rawId.trim();
-  if (!createNew && !requestedId) {
-    elements.budgetInput.setCustomValidity('Введите ID бюджета');
-    elements.budgetInput.reportValidity();
-    return;
-  }
-  elements.budgetInput.setCustomValidity('');
+  if (!createNew && !requestedId) return;
   const budgetId = requestedId || randomId();
-  elements.joinButton.disabled = true;
   elements.createBudgetButton.disabled = true;
-  const oldJoinLabel = elements.joinButton.textContent;
   const oldCreateLabel = elements.createBudgetButton.textContent;
   if (createNew) elements.createBudgetButton.textContent = 'Создаём…';
-  else elements.joinButton.textContent = 'Открываем…';
 
   try {
     await signInAnonymously(auth);
@@ -692,10 +715,10 @@ async function connect(rawId, createNew = false) {
     }
     if (inspection.kind !== 'current') throw new Error('Версия данных этого бюджета не поддерживается');
 
+    const requestedView = location.hash.slice(1);
     activeBudgetId = budgetId;
     currentPeriodId = inspection.data.currentPeriodId;
     rememberBudget(budgetId);
-    elements.budgetId.textContent = budgetId;
     elements.app.hidden = false;
     elements.welcome.hidden = true;
     elements.startNotice.hidden = true;
@@ -703,14 +726,12 @@ async function connect(rawId, createNew = false) {
     elements.status.hidden = true;
     subscribe(currentPeriodId);
     subscribeHistory();
-    const requestedView = location.hash.slice(1);
+    subscribeBudget();
     switchView(['today', 'budget', 'history', 'settings'].includes(requestedView) ? requestedView : 'today');
   } catch (error) {
     showError(error);
   } finally {
-    elements.joinButton.disabled = false;
     elements.createBudgetButton.disabled = false;
-    elements.joinButton.textContent = oldJoinLabel;
     elements.createBudgetButton.textContent = oldCreateLabel;
   }
 }
@@ -718,12 +739,7 @@ async function connect(rawId, createNew = false) {
 document.querySelectorAll('.nav-item').forEach(button => button.addEventListener('click', () => switchView(button.dataset.target)));
 window.addEventListener('hashchange', () => activeBudgetId && switchView(location.hash.slice(1)));
 
-elements.joinButton.addEventListener('click', () => connect(elements.budgetInput.value));
 elements.createBudgetButton.addEventListener('click', () => connect('', true));
-elements.budgetInput.addEventListener('input', () => elements.budgetInput.setCustomValidity(''));
-elements.budgetInput.addEventListener('keydown', event => {
-  if (event.key === 'Enter') connect(elements.budgetInput.value);
-});
 
 elements.quickExpenseForm.addEventListener('submit', async event => {
   event.preventDefault();
@@ -752,7 +768,7 @@ elements.quickExpenseAmount.addEventListener('input', () => elements.quickExpens
 
 elements.copyLinkButton.addEventListener('click', async () => {
   try {
-    await navigator.clipboard.writeText(canonicalUrl(activeBudgetId).toString());
+    await copyText(canonicalBudgetUrl(location.href, activeBudgetId).toString());
     elements.copyLinkButton.textContent = 'Скопировано';
     setTimeout(() => { elements.copyLinkButton.textContent = 'Копировать ссылку'; }, 1400);
   } catch (error) {
@@ -761,9 +777,15 @@ elements.copyLinkButton.addEventListener('click', async () => {
 });
 
 elements.shareButton.addEventListener('click', async () => {
-  const url = canonicalUrl(activeBudgetId).toString();
+  const url = canonicalBudgetUrl(location.href, activeBudgetId).toString();
   if (!navigator.share) {
-    try { await navigator.clipboard.writeText(url); } catch (error) { showError(error); }
+    try {
+      await copyText(url);
+      elements.shareButton.textContent = 'Ссылка скопирована';
+      setTimeout(() => { elements.shareButton.textContent = 'Поделиться'; }, 1400);
+    } catch (error) {
+      showError(error);
+    }
     return;
   }
   try {
@@ -810,10 +832,11 @@ elements.editHistoryTargetButton.addEventListener('click', () => {
   if (state) editProtectedAmount(state, 'targetEndBalance', 'Изменить целевой остаток периода');
 });
 
-const params = new URLSearchParams(location.search);
 const legacyStoredId = localStorage.getItem('budget_room');
-const initialBudgetId = params.get('budget') || params.get('room') || localStorage.getItem('budget_id') || legacyStoredId || '';
+const initialBudgetId = resolveInitialBudgetId(location.search, {
+  budgetId: localStorage.getItem('budget_id'),
+  legacyBudgetId: legacyStoredId,
+});
 if (initialBudgetId) {
-  elements.budgetInput.value = initialBudgetId;
   connect(initialBudgetId);
 }
