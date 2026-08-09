@@ -144,13 +144,13 @@ input:focus-visible, select:focus-visible { border-color: var(--primary); box-sh
 .quick-expense { background: linear-gradient(120deg, #fff 0, #fff 68%, var(--blush) 100%); }
 .paw-badge { display: block; width: 40px; height: 40px; color: var(--primary); }
 .paw-badge svg { width: 100%; height: 100%; fill: currentColor; }
-.expense-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(150px, .55fr) auto; gap: var(--space-3); }
+.expense-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(150px, .55fr) auto; align-items: end; gap: var(--space-3); }
 .money-input { position: relative; min-width: 0; }
 .money-input input { width: 100%; height: 58px; padding: 10px 48px 10px 16px; font-size: 1.55rem; font-weight: 850; }
 .money-input span { position: absolute; top: 50%; right: 17px; color: var(--muted); font-size: 1.35rem; font-weight: 750; transform: translateY(-50%); pointer-events: none; }
 .category-picker { display: grid; gap: 5px; color: var(--muted); font-size: .75rem; font-weight: 750; }
 .category-picker select { min-width: 150px; height: 58px; }
-.paw-button { min-height: 58px; padding-inline: 24px; border-radius: 18px 18px 18px 8px; box-shadow: 0 10px 24px rgba(216, 79, 135, .2); }
+.paw-button { min-height: 58px; padding-inline: 24px; border-radius: 18px; box-shadow: 0 10px 24px rgba(216, 79, 135, .2); }
 .form-hint { margin: var(--space-3) 0 0; color: var(--muted); font-size: .78rem; }
 
 .transaction-count { display: grid; min-width: 30px; height: 30px; padding: 0 9px; place-items: center; border-radius: 999px; background: var(--blush); color: var(--primary-active); font-size: .78rem; font-weight: 850; }
@@ -317,6 +317,16 @@ td:last-child, th:last-child { width: 1%; text-align: right; }
   .table-scroll td:last-child { width: 100%; text-align: left; }
   .table-actions { justify-content: stretch; }
   .table-actions .button { flex: 1; }
+  .income-table-scroll { overflow-x: auto; }
+  .income-table-scroll table { width: max-content; min-width: 100%; }
+  .income-table-scroll thead { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
+  .income-table-scroll tbody { display: table-row-group; width: auto; }
+  .income-table-scroll tr { display: table-row; padding: 0; border: 0; }
+  .income-table-scroll td { display: table-cell; width: auto; padding: 10px 8px; border-bottom: 1px solid #f3e9ee; white-space: nowrap; }
+  .income-table-scroll td::before { display: none; }
+  .income-table-scroll td:last-child { width: 1%; text-align: right; }
+  .income-table-scroll .table-actions { align-items: center; flex-direction: row; justify-content: flex-end; }
+  .income-table-scroll .table-actions .button { flex: 0 0 auto; }
   .share-controls { align-items: stretch; flex-direction: column; }
   .dialog-actions { align-items: stretch; flex-direction: column-reverse; }
   .dialog-actions .button { width: 100%; }
