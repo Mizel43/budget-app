@@ -1,4 +1,5 @@
 import { parseLocalDate } from './dates.js';
+import { fenToYuan, parseYuanToFen } from './money.js';
 
 const moneyFormatter = new Intl.NumberFormat('ru-RU', {
   style: 'currency',
@@ -25,24 +26,15 @@ const compactDateWithYearFormatter = new Intl.DateTimeFormat('ru-RU', {
 });
 
 export function formatMoney(value) {
-  return moneyFormatter.format(Number(value) || 0);
+  return moneyFormatter.format(fenToYuan(value));
 }
 
 export function parseMoneyInput(value) {
-  const normalized = String(value ?? '')
-    .trim()
-    .replace(/\s/g, '')
-    .replace(',', '.');
-  if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) return null;
-  const amount = Number(normalized);
-  return Number.isFinite(amount) && amount > 0 ? amount : null;
+  return parseYuanToFen(value);
 }
 
 export function parseNonNegativeMoneyInput(value) {
-  const normalized = String(value ?? '').trim();
-  if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) return null;
-  const amount = Number(normalized);
-  return Number.isFinite(amount) && amount >= 0 ? amount : null;
+  return parseYuanToFen(value, { allowZero: true });
 }
 
 export function normalizeRequiredText(value) {

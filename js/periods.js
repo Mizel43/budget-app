@@ -1,8 +1,8 @@
 import { addDays, compareDateKeys, inclusiveDayCount, parseLocalDate, formatDateKey } from './dates.js';
+import { amountFenOf, periodFenOf } from './money.js';
 
 function amountOf(value) {
-  const amount = Number(value);
-  return Number.isFinite(amount) ? amount : 0;
+  return amountFenOf(value);
 }
 
 export function periodDayCount(period) {
@@ -34,14 +34,14 @@ export function countTransactionsOutsideRange(transactions, startDate, endDate) 
 }
 
 export function summarizePeriod({ period, incomeItems = [], fixedExpenses = [], transactions = [] }) {
-  const totalIncome = incomeItems.reduce((sum, item) => sum + amountOf(item.amount), 0);
-  const totalFixed = fixedExpenses.reduce((sum, item) => sum + amountOf(item.amount), 0);
-  const reserve = amountOf(period.reserveAmount);
-  const target = amountOf(period.targetEndBalance);
+  const totalIncome = incomeItems.reduce((sum, item) => sum + amountOf(item), 0);
+  const totalFixed = fixedExpenses.reduce((sum, item) => sum + amountOf(item), 0);
+  const reserve = periodFenOf(period, 'reserveAmount');
+  const target = periodFenOf(period, 'targetEndBalance');
   const periodTransactions = period?.startDate && period?.endDate
     ? transactions.filter(item => compareDateKeys(item.date, period.startDate) >= 0 && compareDateKeys(item.date, period.endDate) <= 0)
     : transactions;
-  const dailySpent = periodTransactions.reduce((sum, item) => sum + amountOf(item.amount), 0);
+  const dailySpent = periodTransactions.reduce((sum, item) => sum + amountOf(item), 0);
   const discretionaryPool = totalIncome - totalFixed - reserve - target;
   return {
     totalIncome,
@@ -58,7 +58,7 @@ export function groupTransactionsByDate(transactions = []) {
   const groups = new Map();
   transactions.forEach(transaction => {
     const group = groups.get(transaction.date) ?? { date: transaction.date, amount: 0, transactions: [] };
-    group.amount += amountOf(transaction.amount);
+    group.amount += amountOf(transaction);
     group.transactions.push(transaction);
     groups.set(transaction.date, group);
   });

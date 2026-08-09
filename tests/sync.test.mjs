@@ -47,12 +47,14 @@ test('UI не показывает технический ID и ручное п�
   assert.doesNotMatch(html, /ID существующего бюджета|id="budgetInput"|id="joinButton"|id="budgetId"/);
 });
 
-test('repository сохраняет записи адресно и слушает текущий период бюджета', async () => {
+test('repository хранит адресные записи, агрегаты и лёгкую историю', async () => {
   const repository = await readFile(new URL('../js/repository.js', import.meta.url), 'utf8');
   assert.match(repository, /subscribeToBudgetMetadata[\s\S]*onSnapshot\(budgetRef\(budgetId\)/);
   assert.match(repository, /const ref = doc\(periodCollection\(budgetId, periodId, collectionName\)\)/);
-  assert.match(repository, /batch\.update\(doc\(periodCollection\(budgetId, periodId, collectionName\), itemId\)/);
-  assert.match(repository, /batch\.delete\(doc\(periodCollection\(budgetId, periodId, collectionName\), itemId\)\)/);
+  assert.match(repository, /runTransaction\(db/);
+  assert.match(repository, /categoryTotals/);
+  assert.match(repository, /subscribeToBudgetHistory[\s\S]*deletionState/);
+  assert.match(repository, /deleteHistoricalPeriod/);
   assert.doesNotMatch(repository, /getStateFromUI|setDoc\(/);
 });
 

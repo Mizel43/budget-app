@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { addDays, compareDateKeys, generateDateRange, inclusiveDayCount, parseLocalDate } from '../js/dates.js';
+import { addDays, compareDateKeys, generateDateRange, inclusiveDayCount, parseLocalDate, todayDateKeyInTimeZone } from '../js/dates.js';
 
 test('период 10 Jul → 9 Aug содержит 31 день', () => {
   assert.equal(addDays('2026-07-10', 30), '2026-08-09');
@@ -20,4 +20,9 @@ test('високосный февраль и inclusive range корректны'
 test('date-only сравнение и валидация не используют UTC', () => {
   assert.equal(compareDateKeys('2026-01-31', '2026-02-01'), -1);
   assert.throws(() => parseLocalDate('2026-02-29'), /Несуществующая дата/);
+});
+
+test('день бюджета определяется по Guangzhou, а не часовому поясу устройства', () => {
+  assert.equal(todayDateKeyInTimeZone(new Date('2026-08-09T15:59:00.000Z')), '2026-08-09');
+  assert.equal(todayDateKeyInTimeZone(new Date('2026-08-09T16:00:00.000Z')), '2026-08-10');
 });

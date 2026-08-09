@@ -27,7 +27,16 @@ test('production не содержит тяжёлых UI-зависимосте�
   const [html, repository] = await Promise.all([read('../index.html'), read('../js/repository.js')]);
   assert.doesNotMatch(html, /react|vue|chart\.js|serviceWorker/i);
   assert.doesNotMatch(repository, /getStateFromUI|saveWholeState|setDoc\(/);
-  assert.match(repository, /batch\.set\(ref, \{ \.\.\.item/);
+  assert.match(repository, /runTransaction\(db/);
+});
+
+test('в интерфейсе есть детали, категории и аналитика без chart-зависимости', async () => {
+  const [html, app, analytics] = await Promise.all([read('../index.html'), read('../js/app.js'), read('../js/analytics.js')]);
+  assert.match(html, /data-target="details"/);
+  assert.match(html, /Детали расходов/);
+  assert.match(html, /Архив категорий/);
+  assert.match(app, /todayDateKeyInTimeZone/);
+  assert.match(analytics, /conic-gradient/);
 });
 
 test('production использует CNY и не содержит обозначений старой валюты', async () => {

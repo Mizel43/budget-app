@@ -24,6 +24,18 @@ export function todayDateKey(now = new Date()) {
   return formatDateKey(now);
 }
 
+/** Date-only budget keys must follow Guangzhou time, independent of device timezone. */
+export function todayDateKeyInTimeZone(now = new Date(), timeZone = 'Asia/Shanghai') {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
 export function addDays(dateKey, amount) {
   if (!Number.isInteger(amount)) throw new TypeError('Количество дней должно быть целым');
   const date = parseLocalDate(dateKey);

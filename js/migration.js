@@ -1,6 +1,7 @@
 import { addDays } from './dates.js';
+import { yuanToFen } from './money.js';
 
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 function finiteNumber(value) {
   const number = Number(value);
@@ -37,22 +38,33 @@ export function buildLegacyMigration(data, startDate) {
   const fixedExpenses = source.expenses.map((item, index) => ({
     id: `legacy-fixed-${String(index + 1).padStart(3, '0')}`,
     category: item.category || `Обязательный расход ${index + 1}`,
-    amount: item.amount,
+    amountFen: yuanToFen(item.amount),
   }));
   const transactions = Array.from({ length: source.daysCount }, (_, index) => {
     const day = source.days[index] ?? { masha: 0, ilya: 0 };
     return {
       id: `legacy-day-${String(index + 1).padStart(3, '0')}`,
       date: addDays(startDate, index),
-      amount: finiteNumber(day.masha) + finiteNumber(day.ilya),
+      amountFen: yuanToFen(finiteNumber(day.masha) + finiteNumber(day.ilya)),
     };
   });
 
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     periodId,
-    period: { startDate, endDate, status: 'active', reserveAmount: 0, targetEndBalance: 0 },
-    incomeItems: [{ id: 'legacy-income', label: 'Доход из старой версии', amount: source.monthlyIncome, date: startDate }],
+    period: {
+      startDate,
+      endDate,
+      status: 'active',
+      reserveAmountFen: 0,
+      targetEndBalanceFen: 0,
+      summary: {
+        totalIncomeFen: yuanToFen(source.monthlyIncome),
+        totalFixedFen: fixedExpenses.reduce((sum, item) => sum + item.amountFen, 0),
+        totalSpentFen: transactions.reduce((sum, item) => sum + item.amountFen, 0),
+      },
+    },
+    incomeItems: [{ id: 'legacy-income', label: 'Доход из старой версии', amountFen: yuanToFen(source.monthlyIncome), date: startDate }],
     fixedExpenses,
     transactions,
     backup: { sourceSchema: 'legacy-v1', source: data },

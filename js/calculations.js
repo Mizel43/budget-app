@@ -1,8 +1,8 @@
-import { compareDateKeys, inclusiveDayCount, todayDateKey } from './dates.js';
+import { compareDateKeys, inclusiveDayCount, todayDateKeyInTimeZone } from './dates.js';
+import { amountFenOf, periodFenOf, roundRationalFen } from './money.js';
 
 function amountOf(item) {
-  const value = Number(item?.amount);
-  return Number.isFinite(value) ? value : 0;
+  return amountFenOf(item);
 }
 
 function sumAmounts(items) {
@@ -34,7 +34,7 @@ export function incomeThroughDate(items = [], date) {
   return totalIncome(items.filter(item => !item?.date || compareDateKeys(item.date, date) <= 0));
 }
 
-export function getPeriodStatus(period, date = todayDateKey()) {
+export function getPeriodStatus(period, date = todayDateKeyInTimeZone()) {
   assertPeriod(period);
   if (compareDateKeys(date, period.startDate) < 0) return 'upcoming';
   if (compareDateKeys(date, period.endDate) > 0) return 'ended';
@@ -42,7 +42,7 @@ export function getPeriodStatus(period, date = todayDateKey()) {
 }
 
 export function discretionaryPool(incomeItems = [], fixedExpenses = [], reserveAmount = 0, targetEndBalance = 0) {
-  return totalIncome(incomeItems) - totalFixed(fixedExpenses) - amountOf({ amount: reserveAmount }) - amountOf({ amount: targetEndBalance });
+  return totalIncome(incomeItems) - totalFixed(fixedExpenses) - amountOf({ amountFen: reserveAmount }) - amountOf({ amountFen: targetEndBalance });
 }
 
 export function spendBeforeDate(transactions = [], date) {
@@ -58,7 +58,7 @@ export function calculateAllowance({
   incomeItems = [],
   fixedExpenses = [],
   transactions = [],
-  date = todayDateKey(),
+  date = todayDateKeyInTimeZone(),
 }) {
   assertPeriod(period);
   const status = getPeriodStatus(period, date);
@@ -67,7 +67,9 @@ export function calculateAllowance({
   const effectiveIncomeItems = incomeItems.filter(item => !item?.date || compareDateKeys(item.date, date) <= 0);
   const income = totalIncome(effectiveIncomeItems);
   const fixed = totalFixed(fixedExpenses);
-  const pool = discretionaryPool(effectiveIncomeItems, fixedExpenses, period.reserveAmount, period.targetEndBalance);
+  const reserveAmountFen = periodFenOf(period, 'reserveAmount');
+  const targetEndBalanceFen = periodFenOf(period, 'targetEndBalance');
+  const pool = discretionaryPool(effectiveIncomeItems, fixedExpenses, reserveAmountFen, targetEndBalanceFen);
   const periodTransactions = transactions.filter(item =>
     compareDateKeys(item.date, period.startDate) >= 0 && compareDateKeys(item.date, period.endDate) <= 0
   );
@@ -93,9 +95,11 @@ export function calculateAllowance({
 
   const before = spendBeforeDate(periodTransactions, date);
   const daysRemaining = inclusiveDayCount(date, period.endDate);
-  const dayStartAllowance = (pool - before) / daysRemaining;
+  const dayStartAllowanceNumeratorFen = pool - before;
+  const dayStartAllowance = roundRationalFen(dayStartAllowanceNumeratorFen, daysRemaining);
   const spentToday = spendOnDate(periodTransactions, date);
-  const availableNowRaw = dayStartAllowance - spentToday;
+  const availableNowNumeratorFen = dayStartAllowanceNumeratorFen - spentToday * daysRemaining;
+  const availableNowRaw = roundRationalFen(availableNowNumeratorFen, daysRemaining);
   return {
     status,
     totalIncome: income,
@@ -105,8 +109,11 @@ export function calculateAllowance({
     remainingDiscretionary,
     spentBeforeDate: before,
     daysRemainingInclusive: daysRemaining,
+    dayStartAllowanceNumeratorFen,
     dayStartAllowance,
     spentToday,
+    availableNowNumeratorFen,
+    availableNowDenominator: daysRemaining,
     availableNowRaw,
     availableNow: Math.max(0, availableNowRaw),
   };

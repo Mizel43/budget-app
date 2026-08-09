@@ -4,6 +4,6 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "check": "node --check js/app.js && node --check js/calculations.js && node --check js/dates.js && node --check js/errors.js && node --check js/firebase.js && node --check js/migration.js && node --check js/periods.js && node --check js/presentation.js && node --check js/repository.js && node --check js/sync.js"
+    "check": "node --check js/app.js && node --check js/analytics.js && node --check js/calculations.js && node --check js/dates.js && node --check js/dialogs.js && node --check js/errors.js && node --check js/firebase.js && node --check js/migration.js && node --check js/money.js && node --check js/periods.js && node --check js/presentation.js && node --check js/repository.js && node --check js/sync.js && node --check js/view-utils.js"
   }
 }

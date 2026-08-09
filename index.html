@@ -92,6 +92,7 @@
               <input id="quickExpenseAmount" name="amount" type="text" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="quickExpenseHint">
               <span aria-hidden="true">¥</span>
             </div>
+            <label class="category-picker" for="quickExpenseCategory"><span>Категория</span><select id="quickExpenseCategory" name="categoryId"><option value="">Без категории</option></select></label>
             <button class="button paw-button" id="quickExpenseButton" type="submit">
               <span aria-hidden="true">＋</span> Записать расход
             </button>
@@ -165,7 +166,7 @@
           <section class="card history-detail-card">
             <div class="section-heading">
               <div><p class="eyebrow">Детали периода</p><h2 id="historyDetailRange">—</h2><p class="muted" id="historyDetailDays">—</p></div>
-              <button class="button secondary small" id="editHistoryPeriodButton" type="button">Изменить даты</button>
+              <div class="history-detail-actions"><button class="button secondary small" id="editHistoryPeriodButton" type="button">Изменить даты</button><button class="button secondary small danger" id="deleteHistoryPeriodButton" type="button" hidden>Удалить период</button></div>
             </div>
             <div class="history-summary" id="historyDetailSummary"></div>
             <div class="heading-actions history-protected-actions">
@@ -186,6 +187,28 @@
             <div class="history-days" id="historyDays"></div>
             <p class="empty-state" id="historyDaysEmpty">В этом периоде нет ежедневных расходов.</p>
           </section>
+        </section>
+      </section>
+
+      <section class="view" id="detailsView" data-view="details" hidden aria-labelledby="detailsNavLabel">
+        <div class="view-heading"><p class="eyebrow">По периодам</p><h1>Детали расходов</h1><p>Категории помогают увидеть, куда уходят деньги.</p></div>
+        <section class="card details-analytics-card">
+          <div class="section-heading"><div><h2>Расходы по категориям</h2><p class="muted" id="detailsPeriodRange">—</p></div><label class="period-select"><span class="sr-only">Период для диаграммы</span><select id="detailsPeriodSelect"></select></label></div>
+          <div class="details-chart-layout" id="detailsChartArea">
+            <div class="donut-chart" id="detailsDonut" role="img" aria-label="Диаграмма расходов по категориям"><span id="detailsDonutTotal">0 ¥</span></div>
+            <div class="category-legend" id="detailsLegend"></div>
+          </div>
+          <p class="empty-state" id="detailsChartEmpty" hidden>В этом периоде пока нет расходов.</p>
+        </section>
+        <section class="card">
+          <div class="section-heading"><div><h2>Категории</h2><p class="muted">Для новых расходов доступны только активные категории.</p></div><button class="button small" id="addCategoryButton" type="button">Новая категория</button></div>
+          <div class="category-list" id="activeCategories"></div>
+          <p class="empty-state" id="activeCategoriesEmpty">Создайте первую категорию, например «Еда» или «Транспорт».</p>
+        </section>
+        <section class="card archive-categories-card">
+          <button class="archive-toggle" id="archiveCategoriesToggle" type="button" aria-expanded="false"><span>Архив категорий</span><span id="archivedCategoryCount">0</span></button>
+          <div class="category-list" id="archivedCategories" hidden></div>
+          <p class="empty-state" id="archivedCategoriesEmpty" hidden>В архиве пока нет категорий.</p>
         </section>
       </section>
 
@@ -217,6 +240,10 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v6h6M5.5 17A8 8 0 1 0 4 9m8-2v5l3 2"/></svg>
         <span id="historyNavLabel">История</span>
       </button>
+      <button class="nav-item" type="button" data-target="details">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9h-9Zm2-1.8V12h10.8A10.8 10.8 0 0 0 14 1.2Z"/></svg>
+        <span id="detailsNavLabel">Детали</span>
+      </button>
       <button class="nav-item" type="button" data-target="settings">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm7-3.5 2-1-2-3-2.2.5L15 7l-.3-2.4h-5.4L9 7 7.2 8.5 5 8l-2 3 2 1-2 1 2 3 2.2-.5L9 17l.3 2.4h5.4L15 17l1.8-1.5L19 16l2-3-2-1Z"/></svg>
         <span id="settingsNavLabel">Настройки</span>
@@ -227,7 +254,7 @@
   <dialog id="migrationDialog" class="dialog" aria-labelledby="migrationTitle">
     <form method="dialog" id="migrationForm">
       <p class="eyebrow">Найдены данные старой версии</p>
-      <h2 id="migrationTitle">Перенести бюджет в V2</h2>
+      <h2 id="migrationTitle">Перенести бюджет в V3</h2>
       <p>Исходные данные будут сохранены в резервной копии. Укажите дату, которой соответствовал «День 1».</p>
       <label for="legacyStartDate">Дата начала старого периода</label>
       <input id="legacyStartDate" type="date" required>

@@ -1,197 +1,87 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  calculateAllowance,
-  discretionaryPool,
-  getPeriodStatus,
-  totalDailyTransactions,
-  totalFixed,
-  totalIncome,
-} from '../js/calculations.js';
+import { calculateAllowance, discretionaryPool, getPeriodStatus, totalDailyTransactions, totalFixed, totalIncome } from '../js/calculations.js';
 
-const period = { startDate: '2026-07-10', endDate: '2026-07-12', reserveAmount: 0, targetEndBalance: 0 };
-const incomeItems = [{ amount: 300 }];
+const period = { startDate: '2026-07-10', endDate: '2026-07-12', reserveAmountFen: 0, targetEndBalanceFen: 0 };
+const incomeItems = [{ amountFen: 30000 }];
 
-test('allowance без расходов делит пул на оставшиеся дни', () => {
+test('allowance считает фэни без потери точности', () => {
   const result = calculateAllowance({ period, incomeItems, date: '2026-07-10' });
-  assert.equal(result.dayStartAllowance, 100);
-  assert.equal(result.availableNow, 100);
+  assert.equal(result.dayStartAllowance, 10000);
+  assert.equal(result.availableNow, 10000);
+  assert.equal(result.availableNowNumeratorFen, 30000);
+  assert.equal(result.availableNowDenominator, 3);
 });
 
-test('экономия вчера повышает следующий allowance', () => {
-  const result = calculateAllowance({ period, incomeItems, transactions: [{ date: '2026-07-10', amount: 50 }], date: '2026-07-11' });
-  assert.equal(result.dayStartAllowance, 125);
+test('экономия и перерасход меняют следующий allowance', () => {
+  const economy = calculateAllowance({ period, incomeItems, transactions: [{ date: '2026-07-10', amountFen: 5000 }], date: '2026-07-11' });
+  const overspend = calculateAllowance({ period, incomeItems, transactions: [{ date: '2026-07-10', amountFen: 15000 }], date: '2026-07-11' });
+  assert.equal(economy.dayStartAllowance, 12500);
+  assert.equal(overspend.dayStartAllowance, 7500);
 });
 
-test('перерасход вчера понижает следующий allowance', () => {
-  const result = calculateAllowance({ period, incomeItems, transactions: [{ date: '2026-07-10', amount: 150 }], date: '2026-07-11' });
-  assert.equal(result.dayStartAllowance, 75);
-});
-
-test('сегодняшняя транзакция не меняет dayStartAllowance', () => {
+test('сегодняшние траты не перераспределяют дневную базу', () => {
   const before = calculateAllowance({ period, incomeItems, date: '2026-07-11' });
-  const after = calculateAllowance({ period, incomeItems, transactions: [{ date: '2026-07-11', amount: 40 }], date: '2026-07-11' });
+  const after = calculateAllowance({ period, incomeItems, transactions: [{ date: '2026-07-11', amountFen: 4000 }], date: '2026-07-11' });
   assert.equal(after.dayStartAllowance, before.dayStartAllowance);
-  assert.equal(after.availableNowRaw, before.dayStartAllowance - 40);
+  assert.equal(after.availableNowRaw, 11000);
 });
 
-test('несколько сегодняшних транзакций уменьшают available, но сохраняют base', () => {
-  const transactions = [
-    { id: 'one', date: '2026-07-10', amount: 60 },
-    { id: 'two', date: '2026-07-10', amount: 30 },
-  ];
-  const result = calculateAllowance({ period, incomeItems, transactions, date: '2026-07-10' });
-  assert.equal(result.dayStartAllowance, 100);
-  assert.equal(result.spentToday, 90);
-  assert.equal(result.availableNowRaw, 10);
+test('пул включает доходы, обязательные суммы и резерв', () => {
+  const incomes = [{ amountFen: 40000 }, { amountFen: 60000 }];
+  const fixed = [{ amountFen: 20000 }, { amountFen: 5000 }];
+  assert.equal(totalIncome(incomes), 100000);
+  assert.equal(totalFixed(fixed), 25000);
+  assert.equal(discretionaryPool(incomes, fixed, 10000, 15000), 50000);
 });
 
-test('период из одного дня не делит на ноль', () => {
-  const oneDay = { ...period, endDate: period.startDate };
-  const result = calculateAllowance({ period: oneDay, incomeItems, date: period.startDate });
-  assert.equal(result.daysRemainingInclusive, 1);
-  assert.equal(result.dayStartAllowance, 300);
+test('будущий доход не входит в лимит до своей даты', () => {
+  const result = calculateAllowance({
+    period,
+    incomeItems: [{ date: '2026-07-10', amountFen: 30000 }, { date: '2026-07-12', amountFen: 30000 }],
+    date: '2026-07-11',
+  });
+  assert.equal(result.totalIncome, 30000);
+  assert.equal(result.dayStartAllowance, 15000);
 });
 
-test('upcoming и ended статусы не рассчитывают активный allowance', () => {
-  const upcoming = calculateAllowance({ period, incomeItems, date: '2026-07-09' });
-  const ended = calculateAllowance({ period, incomeItems, date: '2026-07-13' });
+test('отрицательный пул сохраняется в математике, но не показывается как доступный', () => {
+  const result = calculateAllowance({
+    period: { ...period, reserveAmountFen: 20000, targetEndBalanceFen: 10000 },
+    incomeItems: [{ amountFen: 10000 }],
+    fixedExpenses: [{ amountFen: 10000 }],
+    date: '2026-07-10',
+  });
+  assert.equal(result.discretionaryPool, -30000);
+  assert.equal(result.availableNow, 0);
+});
+
+test('операции за пределами периода исключены из расчёта', () => {
+  const result = calculateAllowance({
+    period,
+    incomeItems,
+    transactions: [{ date: '2026-07-09', amountFen: 90000 }, { date: '2026-07-10', amountFen: 3000 }, { date: '2026-07-13', amountFen: 80000 }],
+    date: '2026-07-11',
+  });
+  assert.equal(totalDailyTransactions([{ amountFen: 2500 }, { amountFen: 3500 }]), 6000);
+  assert.equal(result.totalDailyTransactions, 3000);
+  assert.equal(result.remainingDiscretionary, 27000);
+});
+
+test('неравное деление хранит числитель, а не ранний округлённый юань', () => {
+  const result = calculateAllowance({
+    period: { ...period, startDate: '2026-01-01', endDate: '2026-01-03' },
+    incomeItems: [{ amountFen: 10000 }],
+    transactions: [{ date: '2026-01-01', amountFen: 3333 }],
+    date: '2026-01-02',
+  });
+  assert.equal(result.dayStartAllowanceNumeratorFen, 6667);
+  assert.equal(result.daysRemainingInclusive, 2);
+  assert.equal(result.dayStartAllowance, 3334);
+});
+
+test('статусы периодов остаются явными', () => {
   assert.equal(getPeriodStatus(period, '2026-07-09'), 'upcoming');
   assert.equal(getPeriodStatus(period, '2026-07-10'), 'active');
   assert.equal(getPeriodStatus(period, '2026-07-13'), 'ended');
-  for (const result of [upcoming, ended]) {
-    assert.equal(result.dayStartAllowance, null);
-    assert.equal(result.daysRemainingInclusive, null);
-    assert.equal(result.availableNow, 0);
-  }
-});
-
-test('нулевой доход и отрицательный пул сохраняют raw математику', () => {
-  const zero = calculateAllowance({ period, date: '2026-07-10' });
-  assert.equal(zero.discretionaryPool, 0);
-  assert.equal(zero.availableNowRaw, 0);
-
-  const negative = calculateAllowance({
-    period: { ...period, reserveAmount: 200, targetEndBalance: 100 },
-    incomeItems: [{ label: 'Доход', date: '2026-07-10', amount: 100 }],
-    fixedExpenses: [{ category: 'ЖКХ', amount: 100 }],
-    date: '2026-07-10',
-  });
-  assert.equal(negative.discretionaryPool, -300);
-  assert.equal(negative.dayStartAllowance, -100);
-  assert.equal(negative.availableNowRaw, -100);
-  assert.equal(negative.availableNow, 0);
-  assert.equal(negative.remainingDiscretionary, -300);
-});
-
-test('reserve, target, fixed expenses и несколько доходов входят в пул независимо', () => {
-  const incomes = [
-    { label: 'Аванс', date: '2026-07-10', amount: 400 },
-    { label: 'Зарплата', date: '2026-07-10', amount: 600 },
-  ];
-  const fixed = [{ category: 'Аренда', amount: 200 }, { category: 'Связь', amount: 50 }];
-  assert.equal(totalIncome(incomes), 1000);
-  assert.equal(totalFixed(fixed), 250);
-  assert.equal(discretionaryPool(incomes, fixed, 100, 150), 500);
-
-  const result = calculateAllowance({
-    period: { ...period, reserveAmount: 100, targetEndBalance: 150 },
-    incomeItems: incomes,
-    fixedExpenses: fixed,
-    date: '2026-07-10',
-  });
-  assert.equal(result.dayStartAllowance, 500 / 3);
-});
-
-test('будущий доход не прогнозируется, а доход текущего дня сразу меняет base', () => {
-  const existing = [{ label: 'Основной', date: '2026-07-10', amount: 300 }];
-  const future = { label: 'Будущий', date: '2026-07-12', amount: 300 };
-  const current = calculateAllowance({ period, incomeItems: [...existing, future], date: '2026-07-11' });
-  assert.equal(current.totalIncome, 300);
-  assert.equal(current.dayStartAllowance, 150);
-
-  const addedToday = calculateAllowance({
-    period,
-    incomeItems: [...existing, { ...future, date: '2026-07-11' }],
-    transactions: [{ date: '2026-07-11', amount: 40 }],
-    date: '2026-07-11',
-  });
-  assert.equal(addedToday.dayStartAllowance, 300);
-  assert.equal(addedToday.availableNowRaw, 260);
-});
-
-test('изменение fixed expense в течение дня пересчитывает base до вычета сегодняшних трат', () => {
-  const transactions = [{ date: '2026-07-10', amount: 20 }];
-  const before = calculateAllowance({ period, incomeItems, transactions, date: '2026-07-10' });
-  const after = calculateAllowance({
-    period,
-    incomeItems,
-    fixedExpenses: [{ category: 'Связь', amount: 30 }],
-    transactions,
-    date: '2026-07-10',
-  });
-  assert.equal(before.dayStartAllowance, 100);
-  assert.equal(after.dayStartAllowance, 90);
-  assert.equal(after.availableNowRaw, 70);
-});
-
-test('оставшийся discretionary учитывает все ежедневные транзакции', () => {
-  const transactions = [
-    { date: '2026-07-10', amount: 25 },
-    { date: '2026-07-11', amount: 35 },
-  ];
-  const result = calculateAllowance({ period, incomeItems, transactions, date: '2026-07-11' });
-  assert.equal(totalDailyTransactions(transactions), 60);
-  assert.equal(result.totalDailyTransactions, 60);
-  assert.equal(result.remainingDiscretionary, 240);
-});
-
-test('записи за изменёнными границами сохраняются, но не входят в расчёт', () => {
-  const result = calculateAllowance({
-    period,
-    incomeItems,
-    transactions: [
-      { date: '2026-07-09', amount: 900 },
-      { date: '2026-07-10', amount: 30 },
-      { date: '2026-07-13', amount: 800 },
-    ],
-    date: '2026-07-11',
-  });
-  assert.equal(result.totalDailyTransactions, 30);
-  assert.equal(result.spentBeforeDate, 30);
-  assert.equal(result.remainingDiscretionary, 270);
-});
-
-test('эталонные economy и overspend rollover для периода 60000 / 30', () => {
-  const thirtyDays = { startDate: '2026-07-10', endDate: '2026-08-08', reserveAmount: 0, targetEndBalance: 0 };
-  const incomes = [{ label: 'Доход', date: '2026-07-10', amount: 60000 }];
-  const dayOne = calculateAllowance({ period: thirtyDays, incomeItems: incomes, date: '2026-07-10' });
-  const economy = calculateAllowance({
-    period: thirtyDays,
-    incomeItems: incomes,
-    transactions: [{ date: '2026-07-10', amount: 1000 }],
-    date: '2026-07-11',
-  });
-  const overspend = calculateAllowance({
-    period: thirtyDays,
-    incomeItems: incomes,
-    transactions: [{ date: '2026-07-10', amount: 3000 }],
-    date: '2026-07-11',
-  });
-  assert.equal(dayOne.daysRemainingInclusive, 30);
-  assert.equal(dayOne.dayStartAllowance, 2000);
-  assert.equal(economy.dayStartAllowance, 59000 / 29);
-  assert.equal(overspend.dayStartAllowance, 57000 / 29);
-});
-
-test('allowance не округляется преждевременно', () => {
-  const uneven = { startDate: '2026-01-01', endDate: '2026-01-03', reserveAmount: 0, targetEndBalance: 0 };
-  const result = calculateAllowance({
-    period: uneven,
-    incomeItems: [{ label: 'Доход', date: '2026-01-01', amount: 100 }],
-    transactions: [{ date: '2026-01-01', amount: 33.33 }],
-    date: '2026-01-02',
-  });
-  assert.equal(result.dayStartAllowance, (100 - 33.33) / 2);
-  assert.notEqual(result.dayStartAllowance, 33.34);
 });

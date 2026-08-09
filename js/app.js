@@ -2,21 +2,30 @@ import { signInAnonymously } from 'https://www.gstatic.com/firebasejs/9.23.0/fir
 import { auth } from './firebase.js';
 import {
   createBudget,
+  createCategory,
   createFixedExpense,
   createIncomeItem,
   createNextPeriod,
   createTransaction,
   inspectBudget,
   migrateLegacyBudget,
+  migrateBudgetToV3,
+  archiveCategory,
+  restoreCategory,
+  updateCategory,
+  deleteHistoricalPeriod,
   removePeriodItem,
   subscribeToBudgetHistory,
   subscribeToBudgetMetadata,
   subscribeToBudget,
+  subscribeToCategories,
+  subscribeToCategoryTotals,
+  subscribeToPeriodDetails,
   updatePeriod,
   updatePeriodItem,
 } from './repository.js';
 import { calculateAllowance } from './calculations.js';
-import { addDays, compareDateKeys, formatDateRange, inclusiveDayCount, todayDateKey } from './dates.js';
+import { addDays, compareDateKeys, formatDateRange, inclusiveDayCount, todayDateKeyInTimeZone } from './dates.js';
 import { userFacingErrorMessage } from './errors.js';
 import { legacyPayload } from './migration.js';
 import {
@@ -36,6 +45,10 @@ import {
   parseMoneyInput,
   parseNonNegativeMoneyInput,
 } from './presentation.js';
+import { formatFenInput } from './money.js';
+import { categoryBreakdown, donutGradient } from './analytics.js';
+import { openEditor as openEditorDialog } from './dialogs.js';
+import { actionButton, iconButton, pawPrintMarkup } from './view-utils.js';
 import { canonicalBudgetUrl, createSubscriptionSlot, normalizeBudgetId, resolveInitialBudgetId } from './sync.js';
 
 const elements = Object.fromEntries([
@@ -45,28 +58,39 @@ const elements = Object.fromEntries([
   'targetSummary', 'discretionaryPool', 'reserveAmount', 'targetEndBalance', 'allowance',
   'remainingPeriod', 'daysRemaining', 'activePeriodContent', 'periodState', 'periodStateLabel',
   'periodStateTitle', 'periodStateText', 'periodStateAction', 'quickExpenseCard', 'quickExpenseForm',
-  'quickExpenseAmount', 'quickExpenseButton', 'todayTransactions', 'todayTransactionsEmpty',
+  'quickExpenseAmount', 'quickExpenseCategory', 'quickExpenseButton', 'todayTransactions', 'todayTransactionsEmpty',
   'todayTransactionsCard', 'transactionCount', 'incomeItems', 'fixedExpenses', 'addIncomeButton', 'addFixedButton',
   'editReserveButton', 'editTargetButton', 'editPeriodButton', 'nextPeriodButton',
   'historyList', 'historyEmpty', 'historyDetail', 'closeHistoryDetailButton', 'historyDetailRange',
   'historyDetailDays', 'historyDetailSummary', 'editHistoryPeriodButton', 'historyIncomeItems',
   'historyFixedExpenses', 'historyDays', 'historyDaysEmpty', 'historyTransactionCount',
   'addHistoryIncomeButton', 'addHistoryFixedButton', 'addHistoryTransactionButton',
-  'editHistoryReserveButton', 'editHistoryTargetButton',
+  'editHistoryReserveButton', 'editHistoryTargetButton', 'deleteHistoryPeriodButton',
+  'detailsPeriodRange', 'detailsPeriodSelect', 'detailsDonut', 'detailsDonutTotal', 'detailsLegend', 'detailsChartEmpty',
+  'addCategoryButton', 'activeCategories', 'activeCategoriesEmpty', 'archiveCategoriesToggle', 'archivedCategoryCount', 'archivedCategories', 'archivedCategoriesEmpty',
   'migrationDialog', 'migrationForm', 'legacyStartDate', 'migrationPreview', 'cancelMigrationButton',
   'confirmMigrationButton', 'editorDialog', 'editorForm', 'editorTitle', 'editorFields',
   'cancelEditorButton', 'nextPeriodDialog', 'nextPeriodForm', 'nextPeriodStartDate', 'nextPeriodEndDate',
   'nextPeriodPreview', 'cancelNextPeriodButton', 'confirmNextPeriodButton',
 ].map(id => [id, document.getElementById(id)]));
 
+const openEditor = options => openEditorDialog(elements, options);
+
 let activeBudgetId = null;
 let currentPeriodId = null;
 let currentState = null;
 let historyStates = [];
 let selectedHistoryPeriodId = null;
+let selectedHistoryState = null;
+let categories = [];
+let categoryTotals = [];
+let detailsPeriodId = null;
 const budgetSubscription = createSubscriptionSlot();
 const periodSubscription = createSubscriptionSlot();
 const historySubscription = createSubscriptionSlot();
+const historyDetailSubscription = createSubscriptionSlot();
+const categorySubscription = createSubscriptionSlot();
+const categoryTotalsSubscription = createSubscriptionSlot();
 
 function randomId(length = 10) {
   const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
@@ -98,6 +122,34 @@ function settleSyncStatus() {
   setSyncStatus(navigator.onLine ? '' : 'Нет сети — изменения синхронизируются позже');
 }
 
+function budgetToday() {
+  return todayDateKeyInTimeZone(new Date(), 'Asia/Shanghai');
+}
+
+function categoryOptions(selectedId = '') {
+  const options = [{ value: '', label: 'Без категории' }];
+  categories.filter(category => category.status === 'active' || category.id === selectedId).forEach(category => {
+    options.push({
+      value: category.id,
+      label: `${category.name}${category.status === 'archived' ? ' (в архиве)' : ''}`,
+    });
+  });
+  return options;
+}
+
+function renderQuickCategoryOptions() {
+  if (!elements.quickExpenseCategory) return;
+  const selected = elements.quickExpenseCategory.value;
+  elements.quickExpenseCategory.replaceChildren();
+  categoryOptions(selected).forEach(option => {
+    const node = document.createElement('option');
+    node.value = option.value;
+    node.textContent = option.label;
+    elements.quickExpenseCategory.append(node);
+  });
+  elements.quickExpenseCategory.value = categoryOptions(selected).some(option => option.value === selected) ? selected : '';
+}
+
 function scrollToTop() {
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   window.scrollTo({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' });
@@ -127,7 +179,7 @@ function rememberBudget(budgetId) {
 }
 
 function switchView(target) {
-  const validTarget = ['today', 'budget', 'history', 'settings'].includes(target) ? target : 'today';
+  const validTarget = ['today', 'budget', 'history', 'details', 'settings'].includes(target) ? target : 'today';
   document.querySelectorAll('[data-view]').forEach(view => {
     const active = view.dataset.view === validTarget;
     view.hidden = !active;
@@ -176,64 +228,19 @@ function migrationChoice(legacyData) {
   });
 }
 
-function openEditor({ title, fields }) {
-  return new Promise(resolve => {
-    elements.editorTitle.textContent = title;
-    elements.editorFields.replaceChildren();
-    fields.forEach(field => {
-      const label = document.createElement('label');
-      label.htmlFor = `editor-${field.name}`;
-      label.textContent = field.label;
-      const input = document.createElement('input');
-      Object.assign(input, {
-        id: `editor-${field.name}`,
-        name: field.name,
-        type: field.type ?? 'text',
-        value: field.value ?? '',
-        required: field.required ?? true,
-      });
-      if (field.inputMode) input.inputMode = field.inputMode;
-      if (field.min != null) input.min = String(field.min);
-      if (field.max != null) input.max = String(field.max);
-      if (field.step != null) input.step = String(field.step);
-      elements.editorFields.append(label, input);
-    });
-    const close = value => {
-      elements.editorForm.onsubmit = null;
-      elements.cancelEditorButton.onclick = null;
-      elements.editorDialog.close();
-      resolve(value);
-    };
-    elements.editorForm.onsubmit = event => {
-      event.preventDefault();
-      if (!elements.editorForm.reportValidity()) return;
-      close(Object.fromEntries(new FormData(elements.editorForm)));
-    };
-    elements.cancelEditorButton.onclick = () => close(null);
-    elements.editorDialog.showModal();
-    elements.editorFields.querySelector('input')?.focus();
-  });
-}
 
-function actionButton(label, className, action) {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = `button secondary small ${className}`;
-  button.textContent = label;
-  button.addEventListener('click', action);
-  return button;
-}
-
-function renderBudgetRows(target, rows, cells, collectionName, state, editAction) {
+function renderBudgetRows(target, rows, cells, labels, collectionName, state, editAction) {
   target.replaceChildren();
   rows.forEach(row => {
     const tableRow = document.createElement('tr');
-    cells(row).forEach(value => {
+    cells(row).forEach((value, index) => {
       const cell = document.createElement('td');
       cell.textContent = value;
+      cell.dataset.label = labels[index] || '';
       tableRow.appendChild(cell);
     });
     const actionCell = document.createElement('td');
+    actionCell.dataset.label = 'Действия';
     const actions = document.createElement('div');
     actions.className = 'table-actions';
     actions.append(actionButton('Изменить', '', () => editAction(row)));
@@ -255,7 +262,7 @@ async function editIncome(state, item = null) {
   const values = await openEditor({ title: item ? 'Изменить доход' : 'Новый доход', fields: [
     { name: 'label', label: 'Название', value: item?.label ?? 'Доход' },
     { name: 'date', label: 'Дата', type: 'date', value: item?.date ?? state.period.startDate, min: state.period.startDate, max: state.period.endDate },
-    { name: 'amount', label: 'Сумма', type: 'number', inputMode: 'decimal', min: 0, step: .01, value: item?.amount ?? '' },
+    { name: 'amount', label: 'Сумма', type: 'text', inputMode: 'decimal', value: item ? formatFenInput(item.amountFen) : '' },
   ] });
   if (!values) return;
   const label = normalizeRequiredText(values.label);
@@ -264,7 +271,7 @@ async function editIncome(state, item = null) {
     showError(new Error('Укажите название и корректную неотрицательную сумму дохода'));
     return;
   }
-  const data = { ...values, label, amount };
+  const data = { label, date: values.date, amountFen: amount };
   try {
     if (item) await updatePeriodItem(activeBudgetId, state.period.id, 'incomeItems', item.id, data);
     else await createIncomeItem(activeBudgetId, state.period.id, data);
@@ -276,7 +283,7 @@ async function editIncome(state, item = null) {
 async function editFixedExpense(state, item = null) {
   const values = await openEditor({ title: item ? 'Изменить обязательный расход' : 'Обязательный расход', fields: [
     { name: 'category', label: 'Категория', value: item?.category ?? '' },
-    { name: 'amount', label: 'Сумма', type: 'number', inputMode: 'decimal', min: 0, step: .01, value: item?.amount ?? '' },
+    { name: 'amount', label: 'Сумма', type: 'text', inputMode: 'decimal', value: item ? formatFenInput(item.amountFen) : '' },
   ] });
   if (!values) return;
   const category = normalizeRequiredText(values.category);
@@ -285,7 +292,7 @@ async function editFixedExpense(state, item = null) {
     showError(new Error('Укажите категорию и корректную неотрицательную сумму расхода'));
     return;
   }
-  const data = { ...values, category, amount };
+  const data = { category, amountFen: amount };
   try {
     if (item) await updatePeriodItem(activeBudgetId, state.period.id, 'fixedExpenses', item.id, data);
     else await createFixedExpense(activeBudgetId, state.period.id, data);
@@ -297,7 +304,8 @@ async function editFixedExpense(state, item = null) {
 async function editTransaction(state, item = null) {
   const values = await openEditor({ title: item ? 'Исправить расход' : 'Добавить расход в период', fields: [
     { name: 'date', label: 'Дата', type: 'date', value: item?.date ?? state.period.startDate, min: state.period.startDate, max: state.period.endDate },
-    { name: 'amount', label: 'Сумма', type: 'number', inputMode: 'decimal', min: .01, step: .01, value: item?.amount ?? '' },
+    { name: 'amount', label: 'Сумма', type: 'text', inputMode: 'decimal', value: item ? formatFenInput(item.amountFen) : '' },
+    { name: 'categoryId', label: 'Категория — необязательно', type: 'select', required: false, value: item?.categoryId ?? '', options: categoryOptions(item?.categoryId ?? '') },
   ] });
   if (!values) return;
   const amount = parseMoneyInput(values.amount);
@@ -305,7 +313,7 @@ async function editTransaction(state, item = null) {
     showError(new Error('Сумма расхода должна быть больше нуля и содержать не более двух знаков после запятой'));
     return;
   }
-  const data = { ...values, amount };
+  const data = { date: values.date, amountFen: amount, categoryId: values.categoryId || null };
   try {
     if (item) await updatePeriodItem(activeBudgetId, state.period.id, 'transactions', item.id, data);
     else await createTransaction(activeBudgetId, state.period.id, data);
@@ -335,7 +343,7 @@ async function editPeriodDates(state) {
 
 async function editProtectedAmount(state, field, title) {
   const values = await openEditor({ title, fields: [
-    { name: 'amount', label: 'Сумма', type: 'number', inputMode: 'decimal', min: 0, step: .01, value: state.period[field] ?? 0 },
+    { name: 'amount', label: 'Сумма', type: 'text', inputMode: 'decimal', value: formatFenInput(state.period[field] ?? 0) },
   ] });
   if (!values) return;
   const amount = parseNonNegativeMoneyInput(values.amount);
@@ -350,19 +358,6 @@ async function editProtectedAmount(state, field, title) {
   }
 }
 
-function iconButton(label, iconPath, action, danger = false) {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = `icon-button${danger ? ' danger' : ''}`;
-  button.setAttribute('aria-label', label);
-  button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${iconPath}"/></svg>`;
-  button.addEventListener('click', action);
-  return button;
-}
-
-function pawPrintMarkup() {
-  return '<svg viewBox="0 0 40 40" focusable="false"><ellipse cx="8" cy="14" rx="4" ry="5" transform="rotate(-28 8 14)"/><ellipse cx="16" cy="9" rx="4" ry="5" transform="rotate(-10 16 9)"/><ellipse cx="25" cy="9" rx="4" ry="5" transform="rotate(10 25 9)"/><ellipse cx="33" cy="14" rx="4" ry="5" transform="rotate(28 33 14)"/><path d="M9.5 28c0-5 3.5-10.5 10.5-10.5S30.5 23 30.5 28c0 4-3.4 6.5-6.5 6.5-1.6 0-2.8-.8-4-.8s-2.4.8-4 .8c-3.1 0-6.5-2.5-6.5-6.5Z"/></svg>';
-}
 
 function transactionTime(transaction) {
   const date = transaction.createdAt?.toDate?.();
@@ -372,7 +367,10 @@ function transactionTime(transaction) {
 async function editTodayTransaction(transaction) {
   const values = await openEditor({
     title: 'Исправить расход',
-    fields: [{ name: 'amount', label: 'Сумма', type: 'number', inputMode: 'decimal', min: .01, step: .01, value: transaction.amount }],
+    fields: [
+      { name: 'amount', label: 'Сумма', type: 'text', inputMode: 'decimal', value: formatFenInput(transaction.amountFen) },
+      { name: 'categoryId', label: 'Категория — необязательно', type: 'select', required: false, value: transaction.categoryId ?? '', options: categoryOptions(transaction.categoryId ?? '') },
+    ],
   });
   if (!values) return;
   const amount = parseMoneyInput(values.amount);
@@ -381,14 +379,14 @@ async function editTodayTransaction(transaction) {
     return;
   }
   try {
-    await updatePeriodItem(activeBudgetId, currentState.period.id, 'transactions', transaction.id, { amount });
+    await updatePeriodItem(activeBudgetId, currentState.period.id, 'transactions', transaction.id, { amountFen: amount, categoryId: values.categoryId || null });
   } catch (error) {
     showError(error);
   }
 }
 
 async function deleteTodayTransaction(transaction) {
-  if (!confirm(`Удалить расход ${formatMoney(transaction.amount)}?`)) return;
+  if (!confirm(`Удалить расход ${formatMoney(transaction.amountFen)}?`)) return;
   try {
     await removePeriodItem(activeBudgetId, currentState.period.id, 'transactions', transaction.id);
   } catch (error) {
@@ -418,10 +416,17 @@ function renderTodayTransactions(transactions, date) {
     const details = document.createElement('div');
     details.className = 'transaction-details';
     const amount = document.createElement('strong');
-    amount.textContent = formatMoney(transaction.amount);
+    amount.textContent = formatMoney(transaction.amountFen);
     const time = document.createElement('span');
     time.textContent = transactionTime(transaction);
-    details.append(amount, time);
+    const category = categories.find(item => item.id === transaction.categoryId);
+    if (category) {
+      const badge = document.createElement('span');
+      badge.className = 'category-badge';
+      badge.style.setProperty('--category-color', category.color);
+      badge.textContent = category.name;
+      details.append(amount, time, badge);
+    } else details.append(amount, time);
 
     const actions = document.createElement('div');
     actions.className = 'transaction-actions';
@@ -491,7 +496,7 @@ function openNextPeriod(state) {
 }
 
 async function deleteHistoryItem(state, collectionName, item) {
-  if (!confirm(`Удалить запись ${formatMoney(item.amount)}?`)) return;
+  if (!confirm(`Удалить запись ${formatMoney(item.amountFen)}?`)) return;
   try {
     await removePeriodItem(activeBudgetId, state.period.id, collectionName, item.id);
   } catch (error) {
@@ -528,7 +533,7 @@ function renderHistoryRecords(target, state, items, collectionName, titleOf, sub
 }
 
 function renderHistoryDetail(state) {
-  const summary = summarizePeriod(state);
+  const summary = periodSummary(state);
   elements.historyDetailRange.textContent = formatHistoryDateRange(state.period.startDate, state.period.endDate);
   elements.historyDetailDays.textContent = `${inclusiveDayCount(state.period.startDate, state.period.endDate)} дн.`;
   elements.historyDetailSummary.replaceChildren();
@@ -549,7 +554,7 @@ function renderHistoryDetail(state) {
     state,
     [...state.incomeItems].sort((a, b) => compareDateKeys(a.date, b.date)),
     'incomeItems',
-    item => `${item.label} · ${formatMoney(item.amount)}`,
+    item => `${item.label} · ${formatMoney(item.amountFen)}`,
     item => formatHistoryDate(item.date),
     editIncome,
   );
@@ -558,7 +563,7 @@ function renderHistoryDetail(state) {
     state,
     [...state.fixedExpenses].sort((a, b) => a.category.localeCompare(b.category, 'ru')),
     'fixedExpenses',
-    item => `${item.category} · ${formatMoney(item.amount)}`,
+    item => `${item.category} · ${formatMoney(item.amountFen)}`,
     () => 'Обязательный расход',
     editFixedExpense,
   );
@@ -576,7 +581,7 @@ function renderHistoryDetail(state) {
       const row = document.createElement('div');
       row.className = 'history-transaction';
       const amount = document.createElement('span');
-      amount.textContent = formatMoney(transaction.amount);
+      amount.textContent = formatMoney(transaction.amountFen);
       const actions = document.createElement('div');
       actions.className = 'transaction-actions';
       actions.append(
@@ -592,22 +597,63 @@ function renderHistoryDetail(state) {
   elements.historyDaysEmpty.hidden = groups.length > 0;
 }
 
-function renderHistory(states) {
-  historyStates = states;
-  const selected = states.find(state => state.period.id === selectedHistoryPeriodId);
-  if (selected) {
-    elements.historyList.hidden = true;
-    elements.historyEmpty.hidden = true;
-    elements.historyDetail.hidden = false;
-    renderHistoryDetail(selected);
+function periodSummary(state) {
+  const source = state.period.summary;
+  if (source) {
+    const reserve = state.period.reserveAmountFen ?? 0;
+    const target = state.period.targetEndBalanceFen ?? 0;
+    const discretionaryPool = source.totalIncomeFen - source.totalFixedFen - reserve - target;
+    return {
+      totalIncome: source.totalIncomeFen,
+      totalFixed: source.totalFixedFen,
+      reserve,
+      target,
+      dailySpent: source.totalSpentFen,
+      discretionaryPool,
+      finalRemaining: discretionaryPool - source.totalSpentFen,
+    };
+  }
+  return summarizePeriod(state);
+}
+
+function showHistoryDetail(state) {
+  selectedHistoryState = state;
+  elements.historyList.hidden = true;
+  elements.historyEmpty.hidden = true;
+  elements.historyDetail.hidden = false;
+  elements.deleteHistoryPeriodButton.hidden = state.period.id === currentPeriodId;
+  renderHistoryDetail(state);
+}
+
+function openHistoryPeriod(periodId) {
+  selectedHistoryPeriodId = periodId;
+  if (currentState?.period.id === periodId) {
+    showHistoryDetail(currentState);
     return;
   }
+  historyDetailSubscription.switchTo(`${activeBudgetId}/${periodId}`, () => subscribeToPeriodDetails(activeBudgetId, periodId, showHistoryDetail, error => {
+    setSyncStatus('Ошибка загрузки периода');
+    showError(error, 'sync');
+  }));
+}
+
+function closeHistoryDetail() {
   selectedHistoryPeriodId = null;
+  selectedHistoryState = null;
+  historyDetailSubscription.clear();
+  elements.historyDetail.hidden = true;
+  elements.historyList.hidden = false;
+  renderHistory(historyStates);
+}
+
+function renderHistory(states) {
+  historyStates = states;
+  if (selectedHistoryPeriodId) return;
   elements.historyDetail.hidden = true;
   elements.historyList.hidden = false;
   elements.historyList.replaceChildren();
   states.forEach(state => {
-    const summary = summarizePeriod(state);
+    const summary = periodSummary(state);
     const card = document.createElement('button');
     card.type = 'button';
     card.className = 'history-card card';
@@ -622,13 +668,136 @@ function renderHistory(states) {
         <span>Итоговый остаток<strong>${formatMoney(summary.finalRemaining)}</strong></span>
       </span>`;
     card.addEventListener('click', () => {
-      selectedHistoryPeriodId = state.period.id;
-      renderHistory(states);
+      openHistoryPeriod(state.period.id);
       scrollToTop();
     });
     elements.historyList.append(card);
   });
   elements.historyEmpty.hidden = states.length > 0;
+  renderDetails();
+}
+
+function normalizedCategoryName(value) {
+  return normalizeRequiredText(value)?.toLocaleLowerCase('ru-RU') ?? null;
+}
+
+function assertCategoryNameAvailable(name, exceptId = null) {
+  const normalizedName = normalizedCategoryName(name);
+  if (!normalizedName) throw new Error('Укажите название категории');
+  if (categories.some(category => category.id !== exceptId && category.normalizedName === normalizedName)) {
+    throw new Error('Категория с таким названием уже есть. Восстановите или переименуйте существующую.');
+  }
+  return normalizedName;
+}
+
+function renderCategoryRows(target, items, archived = false) {
+  target.replaceChildren();
+  items.forEach(category => {
+    const row = document.createElement('div');
+    row.className = 'category-row';
+    const marker = document.createElement('span');
+    marker.className = 'category-color';
+    marker.style.background = category.color;
+    marker.setAttribute('aria-hidden', 'true');
+    const name = document.createElement('strong');
+    name.textContent = category.name;
+    const copy = document.createElement('div');
+    copy.className = 'category-copy';
+    copy.append(marker, name);
+    const actions = document.createElement('div');
+    actions.className = 'category-actions';
+    if (archived) {
+      actions.append(actionButton('Восстановить', '', async () => {
+        try {
+          assertCategoryNameAvailable(category.name, category.id);
+          await restoreCategory(activeBudgetId, category.id);
+        } catch (error) { showError(error); }
+      }));
+    } else {
+      actions.append(
+        actionButton('Изменить', '', async () => {
+          const values = await openEditor({ title: 'Изменить категорию', fields: [
+            { name: 'name', label: 'Название', value: category.name },
+            { name: 'color', label: 'Цвет', type: 'color', value: category.color },
+          ] });
+          if (!values) return;
+          try {
+            const name = normalizeRequiredText(values.name);
+            const normalizedName = assertCategoryNameAvailable(name, category.id);
+            await updateCategory(activeBudgetId, category.id, { name, normalizedName, color: values.color });
+          } catch (error) { showError(error); }
+        }),
+        actionButton('В архив', 'danger', async () => {
+          if (!confirm(`Архивировать категорию «${category.name}»? В старых расходах и диаграммах она сохранится.`)) return;
+          try { await archiveCategory(activeBudgetId, category.id); } catch (error) { showError(error); }
+        }),
+      );
+    }
+    row.append(copy, actions);
+    target.append(row);
+  });
+}
+
+function renderDetails() {
+  if (!activeBudgetId) return;
+  const activeCategories = categories.filter(category => category.status === 'active');
+  const archivedCategories = categories.filter(category => category.status === 'archived');
+  renderCategoryRows(elements.activeCategories, activeCategories);
+  renderCategoryRows(elements.archivedCategories, archivedCategories, true);
+  elements.activeCategoriesEmpty.hidden = activeCategories.length > 0;
+  elements.archivedCategoryCount.textContent = String(archivedCategories.length);
+  elements.archivedCategoriesEmpty.hidden = archivedCategories.length > 0;
+  renderQuickCategoryOptions();
+
+  const periods = historyStates.length ? historyStates : currentState ? [{ period: currentState.period }] : [];
+  if (!detailsPeriodId || !periods.some(state => state.period.id === detailsPeriodId)) detailsPeriodId = currentPeriodId || periods[0]?.period.id || null;
+  elements.detailsPeriodSelect.replaceChildren();
+  periods.forEach(state => {
+    const option = document.createElement('option');
+    option.value = state.period.id;
+    option.textContent = `${formatHistoryDateRange(state.period.startDate, state.period.endDate)}${state.period.id === currentPeriodId ? ' · Текущий' : ''}`;
+    elements.detailsPeriodSelect.append(option);
+  });
+  elements.detailsPeriodSelect.value = detailsPeriodId || '';
+  const period = periods.find(state => state.period.id === detailsPeriodId)?.period;
+  elements.detailsPeriodRange.textContent = period ? formatHistoryDateRange(period.startDate, period.endDate) : '—';
+  const items = categoryBreakdown(categoryTotals, categories);
+  const totalFen = items[0]?.totalFen ?? 0;
+  elements.detailsChartArea.hidden = items.length === 0;
+  elements.detailsChartEmpty.hidden = items.length > 0;
+  elements.detailsDonut.style.background = donutGradient(items);
+  elements.detailsDonut.setAttribute('aria-label', items.length ? `Расходы по категориям: ${items.map(item => `${item.name} ${formatMoney(item.amountFen)}`).join(', ')}` : 'В периоде нет расходов');
+  elements.detailsDonutTotal.textContent = formatMoney(totalFen);
+  elements.detailsLegend.replaceChildren();
+  items.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'legend-row';
+    const marker = document.createElement('span');
+    marker.className = 'legend-color';
+    marker.style.background = item.color;
+    const name = document.createElement('span');
+    name.textContent = item.name;
+    const value = document.createElement('strong');
+    value.textContent = `${formatMoney(item.amountFen)} · ${item.percent.toFixed(0)}%`;
+    row.append(marker, name, value);
+    elements.detailsLegend.append(row);
+  });
+}
+
+function subscribeCategoryTotalsFor(periodId) {
+  if (!periodId) return;
+  categoryTotalsSubscription.switchTo(`${activeBudgetId}/${periodId}`, () => subscribeToCategoryTotals(activeBudgetId, periodId, totals => {
+    categoryTotals = totals;
+    renderDetails();
+  }, error => showError(error, 'sync')));
+}
+
+function subscribeCategories() {
+  categorySubscription.switchTo(activeBudgetId, () => subscribeToCategories(activeBudgetId, received => {
+    categories = received;
+    if (currentState) render(currentState);
+    renderDetails();
+  }, error => showError(error, 'sync')));
 }
 
 function renderPeriodState(period, summary) {
@@ -657,7 +826,7 @@ function renderPeriodState(period, summary) {
 function render(state) {
   currentState = state;
   const { period, incomeItems, fixedExpenses, transactions } = state;
-  const today = todayDateKey();
+  const today = budgetToday();
   const summary = calculateAllowance({ period, incomeItems, fixedExpenses, transactions, date: today });
   const budgetSummary = summarizePeriod(state);
   const compactRange = formatCompactDateRange(period.startDate, period.endDate);
@@ -686,7 +855,8 @@ function render(state) {
   renderBudgetRows(
     elements.incomeItems,
     [...incomeItems].sort((a, b) => compareDateKeys(a.date, b.date)),
-    item => [item.label, item.date, formatMoney(item.amount)],
+    item => [item.label, item.date, formatMoney(item.amountFen)],
+    ['Название', 'Дата', 'Сумма'],
     'incomeItems',
     state,
     item => editIncome(state, item),
@@ -694,7 +864,8 @@ function render(state) {
   renderBudgetRows(
     elements.fixedExpenses,
     [...fixedExpenses].sort((a, b) => a.category.localeCompare(b.category, 'ru')),
-    item => [item.category, formatMoney(item.amount)],
+    item => [item.category, formatMoney(item.amountFen)],
+    ['Категория', 'Сумма'],
     'fixedExpenses',
     state,
     item => editFixedExpense(state, item),
@@ -726,8 +897,9 @@ function subscribeBudget() {
   budgetSubscription.switchTo(activeBudgetId, () => subscribeToBudgetMetadata(activeBudgetId, budget => {
     if (!budget.currentPeriodId || budget.currentPeriodId === currentPeriodId) return;
     currentPeriodId = budget.currentPeriodId;
-    selectedHistoryPeriodId = null;
+    if (selectedHistoryPeriodId === currentPeriodId) closeHistoryDetail();
     subscribe(currentPeriodId);
+    if (detailsPeriodId === currentPeriodId || !detailsPeriodId) subscribeCategoryTotalsFor(currentPeriodId);
     renderHistory(historyStates);
   }, error => {
     setSyncStatus('Ошибка синхронизации');
@@ -766,6 +938,12 @@ async function connect(rawId, createNew = false) {
       await migrateLegacyBudget(budgetId, startDate);
       inspection = await inspectBudget(budgetId);
     }
+    if (inspection.kind === 'v2') {
+      elements.startNotice.hidden = false;
+      elements.startNotice.textContent = 'Обновляем данные бюджета…';
+      await migrateBudgetToV3(budgetId);
+      inspection = await inspectBudget(budgetId);
+    }
     if (inspection.kind !== 'current') throw new Error('Версия данных этого бюджета не поддерживается');
 
     const requestedView = location.hash.slice(1);
@@ -780,7 +958,10 @@ async function connect(rawId, createNew = false) {
     subscribe(currentPeriodId);
     subscribeHistory();
     subscribeBudget();
-    switchView(['today', 'budget', 'history', 'settings'].includes(requestedView) ? requestedView : 'today');
+    subscribeCategories();
+    detailsPeriodId = currentPeriodId;
+    subscribeCategoryTotalsFor(currentPeriodId);
+    switchView(['today', 'budget', 'history', 'details', 'settings'].includes(requestedView) ? requestedView : 'today');
   } catch (error) {
     showError(error);
   } finally {
@@ -796,12 +977,18 @@ window.addEventListener('online', () => {
   setSyncStatus('Сеть восстановлена');
   window.setTimeout(() => navigator.onLine && setSyncStatus(''), 2500);
 });
+window.addEventListener('focus', () => {
+  if (currentState) render(currentState);
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && currentState) render(currentState);
+});
 
 elements.createBudgetButton.addEventListener('click', () => connect('', true));
 
 elements.quickExpenseForm.addEventListener('submit', async event => {
   event.preventDefault();
-  if (!currentState || calculateAllowance({ ...currentState, date: todayDateKey() }).status !== 'active') return;
+  if (!currentState || calculateAllowance({ ...currentState, date: budgetToday() }).status !== 'active') return;
   const amount = parseMoneyInput(elements.quickExpenseAmount.value);
   if (amount == null) {
     elements.quickExpenseAmount.setCustomValidity('Введите сумму больше нуля, не более двух знаков после запятой');
@@ -813,7 +1000,7 @@ elements.quickExpenseForm.addEventListener('submit', async event => {
   elements.quickExpenseAmount.value = '';
   elements.quickExpenseButton.disabled = true;
   try {
-    await createTransaction(activeBudgetId, currentState.period.id, { date: todayDateKey(), amount });
+    await createTransaction(activeBudgetId, currentState.period.id, { date: budgetToday(), amountFen: amount, categoryId: elements.quickExpenseCategory.value || null });
   } catch (error) {
     elements.quickExpenseAmount.value = originalValue;
     showError(error);
@@ -823,6 +1010,31 @@ elements.quickExpenseForm.addEventListener('submit', async event => {
   }
 });
 elements.quickExpenseAmount.addEventListener('input', () => elements.quickExpenseAmount.setCustomValidity(''));
+
+elements.detailsPeriodSelect.addEventListener('change', () => {
+  detailsPeriodId = elements.detailsPeriodSelect.value;
+  categoryTotals = [];
+  subscribeCategoryTotalsFor(detailsPeriodId);
+  renderDetails();
+});
+elements.archiveCategoriesToggle.addEventListener('click', () => {
+  const expanded = elements.archiveCategoriesToggle.getAttribute('aria-expanded') === 'true';
+  elements.archiveCategoriesToggle.setAttribute('aria-expanded', String(!expanded));
+  elements.archivedCategories.hidden = expanded;
+  elements.archivedCategoriesEmpty.hidden = expanded || categories.some(category => category.status === 'archived');
+});
+elements.addCategoryButton.addEventListener('click', async () => {
+  const values = await openEditor({ title: 'Новая категория', fields: [
+    { name: 'name', label: 'Название', value: '' },
+    { name: 'color', label: 'Цвет', type: 'color', value: '#d84f87' },
+  ] });
+  if (!values) return;
+  try {
+    const name = normalizeRequiredText(values.name);
+    const normalizedName = assertCategoryNameAvailable(name);
+    await createCategory(activeBudgetId, { name, normalizedName, color: values.color });
+  } catch (error) { showError(error); }
+});
 
 elements.copyLinkButton.addEventListener('click', async () => {
   try {
@@ -855,39 +1067,52 @@ elements.shareButton.addEventListener('click', async () => {
 
 elements.addIncomeButton.addEventListener('click', () => currentState && editIncome(currentState));
 elements.addFixedButton.addEventListener('click', () => currentState && editFixedExpense(currentState));
-elements.editReserveButton.addEventListener('click', () => currentState && editProtectedAmount(currentState, 'reserveAmount', 'Изменить резерв'));
-elements.editTargetButton.addEventListener('click', () => currentState && editProtectedAmount(currentState, 'targetEndBalance', 'Изменить целевой остаток'));
+elements.editReserveButton.addEventListener('click', () => currentState && editProtectedAmount(currentState, 'reserveAmountFen', 'Изменить резерв'));
+elements.editTargetButton.addEventListener('click', () => currentState && editProtectedAmount(currentState, 'targetEndBalanceFen', 'Изменить целевой остаток'));
 elements.editPeriodButton.addEventListener('click', () => currentState && editPeriodDates(currentState));
 elements.nextPeriodButton.addEventListener('click', () => currentState && openNextPeriod(currentState));
 
-const selectedHistoryState = () => historyStates.find(state => state.period.id === selectedHistoryPeriodId);
 elements.closeHistoryDetailButton.addEventListener('click', () => {
-  selectedHistoryPeriodId = null;
-  renderHistory(historyStates);
+  closeHistoryDetail();
 });
 elements.editHistoryPeriodButton.addEventListener('click', () => {
-  const state = selectedHistoryState();
+  const state = selectedHistoryState;
   if (state) editPeriodDates(state);
 });
 elements.addHistoryIncomeButton.addEventListener('click', () => {
-  const state = selectedHistoryState();
+  const state = selectedHistoryState;
   if (state) editIncome(state);
 });
 elements.addHistoryFixedButton.addEventListener('click', () => {
-  const state = selectedHistoryState();
+  const state = selectedHistoryState;
   if (state) editFixedExpense(state);
 });
 elements.addHistoryTransactionButton.addEventListener('click', () => {
-  const state = selectedHistoryState();
+  const state = selectedHistoryState;
   if (state) editTransaction(state);
 });
 elements.editHistoryReserveButton.addEventListener('click', () => {
-  const state = selectedHistoryState();
-  if (state) editProtectedAmount(state, 'reserveAmount', 'Изменить резерв периода');
+  const state = selectedHistoryState;
+  if (state) editProtectedAmount(state, 'reserveAmountFen', 'Изменить резерв периода');
 });
 elements.editHistoryTargetButton.addEventListener('click', () => {
-  const state = selectedHistoryState();
-  if (state) editProtectedAmount(state, 'targetEndBalance', 'Изменить целевой остаток периода');
+  const state = selectedHistoryState;
+  if (state) editProtectedAmount(state, 'targetEndBalanceFen', 'Изменить целевой остаток периода');
+});
+elements.deleteHistoryPeriodButton.addEventListener('click', async () => {
+  const state = selectedHistoryState;
+  if (!state || state.period.id === currentPeriodId) return;
+  const range = formatHistoryDateRange(state.period.startDate, state.period.endDate);
+  if (!confirm(`Удалить период ${range} и все его записи? Восстановить его будет нельзя.`)) return;
+  try {
+    elements.deleteHistoryPeriodButton.disabled = true;
+    await deleteHistoricalPeriod(activeBudgetId, state.period.id);
+    closeHistoryDetail();
+  } catch (error) {
+    showError(error);
+  } finally {
+    elements.deleteHistoryPeriodButton.disabled = false;
+  }
 });
 
 const legacyStoredId = localStorage.getItem('budget_room');
